@@ -1,0 +1,512 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue'
+import { FolderOpen, Plus, RefreshCw, Save, Trash2 } from 'lucide-vue-next'
+import type {
+  AiConnectionResponse,
+  AiPromptTemplate,
+  AiTaskType,
+  AppSettings,
+  DatabaseInfo,
+  DatabaseMaintenanceCleanupRequest
+} from '../../shared/ipc'
+import { devtoolsApi } from '../devtoolsApi'
+import { isAiConnectionError } from '../ipcGuards'
+import { extractPromptVariables } from '../promptTemplates'
+import { showToast } from '../toast'
+
+const taskOptions: Array<{ value: AiTaskType; label: string }> = [
+  { value: 'explain-code', label: '代码解释' },
+  { value: 'generate-code', label: '代码生成' },
+  { value: 'api-debug', label: 'API 分析' },
+  { value: 'git-summary', label: 'Git 变更说明' },
+  { value: 'commit-message', label: 'Commit Message' }
+]
+
+const settings = ref<AppSettings>({
+  openaiModel: 'Qwen/Qwen2.5-7B-Instruct',
+  openaiBaseURL: 'https://api.siliconflow.com/v1',
+  apiKeySource: 'none',
+  hasOpenaiApiKey: false,
+  defaultWorkspace: '',
+  apiTimeoutMs: 30000,
+  autoFormatJsonResponse: true
+})
+const apiKey = ref('')
+const testingAi = ref(false)
+const connectionResult = ref<AiConnectionResponse | null>(null)
+const activeSettingsTab = ref<'base' | 'templates' | 'database'>('base')
+const databaseInfo = ref<DatabaseInfo | null>(null)
+const databaseCleanup = ref<Required<DatabaseMaintenanceCleanupRequest>>({
+  aiHistory: true,
+  apiHistory: false,
+  apiSavedRequests: false,
+  customPromptTemplates: false
+})
+const selectedTaskType = ref<AiTaskType>('explain-code')
+const templates = ref<AiPromptTemplate[]>([])
+const selectedTemplateId = ref('')
+const templateName = ref('')
+const templateDraft = ref('')
+const loadingTemplates = ref(false)
+const status = ref('正在读取设置')
+const statusType = ref<'idle' | 'success' | 'error'>('idle')
+const selectedTemplate = computed(() => templates.value.find((item) => item.id === selectedTemplateId.value))
+const templateVariables = computed(() => extractPromptVariables(templateDraft.value))
+const selectedTaskLabel = computed(() => taskOptions.find((item) => item.value === selectedTaskType.value)?.label ?? selectedTaskType.value)
+const apiKeySourceLabel = computed(() => {
+  if (settings.value.apiKeySource === 'env') return '.env / 环境变量'
+  if (settings.value.apiKeySource === 'settings') return '设置页 SQLite 存储'
+  return '未读取到'
+})
+const databaseSizeLabel = computed(() => {
+  const size = databaseInfo.value?.sizeBytes ?? 0
+  if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(2)} MB`
+  if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${size} B`
+})
+
+async function loadSettings(): Promise<void> {
+  try {
+    settings.value = await devtoolsApi.settings.get()
+    status.value = settings.value.hasOpenaiApiKey ? '硅基流动 API Key 已配置' : '尚未配置硅基流动 API Key'
+    statusType.value = settings.value.hasOpenaiApiKey ? 'success' : 'error'
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : '读取设置失败'
+    statusType.value = 'error'
+    showToast(status.value, 'error')
+  }
+}
+
+async function selectDirectory(): Promise<void> {
+  const directory = await devtoolsApi.settings.selectDirectory()
+  if (directory) settings.value.defaultWorkspace = directory
+}
+
+async function loadDatabaseInfo(): Promise<void> {
+  databaseInfo.value = await devtoolsApi.settings.getDatabaseInfo()
+}
+
+async function saveSettings(): Promise<void> {
+  settings.value = await devtoolsApi.settings.update({
+    openaiApiKey: apiKey.value || undefined,
+    openaiModel: settings.value.openaiModel,
+    defaultWorkspace: settings.value.defaultWorkspace,
+    apiTimeoutMs: Number(settings.value.apiTimeoutMs),
+    autoFormatJsonResponse: settings.value.autoFormatJsonResponse
+  })
+  apiKey.value = ''
+  connectionResult.value = null
+  status.value = '设置已保存'
+  statusType.value = 'success'
+  showToast(status.value, 'success')
+}
+
+async function testAiConnection(): Promise<void> {
+  testingAi.value = true
+  const result = await devtoolsApi.ai.testConnection()
+  connectionResult.value = result
+  testingAi.value = false
+
+  if (isAiConnectionError(result)) {
+    status.value = `${result.model ?? settings.value.openaiModel} 连接失败：${result.error}`
+    statusType.value = 'error'
+    showToast(status.value, 'error')
+    return
+  }
+
+  status.value = `${result.model} 连接正常 · ${result.durationMs}ms`
+  statusType.value = 'success'
+  showToast(status.value, 'success')
+}
+
+async function loadTemplates(): Promise<void> {
+  loadingTemplates.value = true
+  templates.value = await devtoolsApi.ai.getPromptTemplates(selectedTaskType.value)
+  selectedTemplateId.value = templates.value[0]?.id ?? ''
+  applySelectedTemplate()
+  loadingTemplates.value = false
+}
+
+function applySelectedTemplate(): void {
+  const template = selectedTemplate.value
+  templateName.value = template?.isBuiltin ? '' : template?.name ?? ''
+  templateDraft.value = template?.content ?? ''
+}
+
+function createTemplate(): void {
+  selectedTemplateId.value = ''
+  templateName.value = `${selectedTaskLabel.value}自定义模板`
+  templateDraft.value = ''
+}
+
+async function saveTemplate(): Promise<void> {
+  const name = templateName.value.trim() || `${selectedTaskLabel.value}模板`
+  const content = templateDraft.value.trim()
+  if (!content) {
+    showToast('模板内容不能为空', 'error')
+    return
+  }
+
+  const editableTemplateId = selectedTemplate.value && !selectedTemplate.value.isBuiltin ? selectedTemplate.value.id : undefined
+  templates.value = await devtoolsApi.ai.savePromptTemplate({
+    id: editableTemplateId,
+    taskType: selectedTaskType.value,
+    name,
+    content,
+    variables: templateVariables.value
+  })
+  selectedTemplateId.value =
+    templates.value.find((item) => item.id === editableTemplateId)?.id ??
+    templates.value.find((item) => !item.isBuiltin && item.name === name && item.content === content)?.id ??
+    templates.value[0]?.id ??
+    ''
+  applySelectedTemplate()
+  status.value = editableTemplateId ? '模板已更新' : '模板已保存'
+  statusType.value = 'success'
+  showToast(status.value, 'success')
+}
+
+async function deleteTemplate(): Promise<void> {
+  if (!selectedTemplate.value || selectedTemplate.value.isBuiltin) return
+  templates.value = await devtoolsApi.ai.deletePromptTemplate(selectedTemplate.value.id, selectedTaskType.value)
+  selectedTemplateId.value = templates.value[0]?.id ?? ''
+  applySelectedTemplate()
+  status.value = '模板已删除'
+  statusType.value = 'success'
+  showToast(status.value, 'success')
+}
+
+async function resetTemplates(): Promise<void> {
+  templates.value = await devtoolsApi.ai.resetBuiltinPromptTemplates(selectedTaskType.value)
+  selectedTemplateId.value = templates.value[0]?.id ?? ''
+  applySelectedTemplate()
+  status.value = `${selectedTaskLabel.value}内置模板已重置`
+  statusType.value = 'success'
+  showToast(status.value, 'success')
+}
+
+async function backupDatabase(): Promise<void> {
+  const result = await devtoolsApi.settings.backupDatabase()
+  databaseInfo.value = result.info
+  status.value = result.message
+  statusType.value = 'success'
+  showToast('数据库已备份', 'success')
+}
+
+async function restoreDatabase(): Promise<void> {
+  if (!window.confirm('恢复数据库会覆盖当前数据，确认继续？')) return
+  const result = await devtoolsApi.settings.restoreDatabase()
+  if (!result) return
+  databaseInfo.value = result.info
+  status.value = result.message
+  statusType.value = 'success'
+  showToast('数据库已恢复，请重启应用以刷新所有页面状态', 'success')
+}
+
+async function cleanupDatabase(): Promise<void> {
+  if (!Object.values(databaseCleanup.value).some(Boolean)) {
+    showToast('请至少选择一个清理项', 'error')
+    return
+  }
+  if (!window.confirm('确认清理所选数据库数据？此操作不可撤销，建议先备份。')) return
+  const result = await devtoolsApi.settings.cleanupDatabase(databaseCleanup.value)
+  databaseInfo.value = result.info
+  status.value = result.message
+  statusType.value = 'success'
+  showToast('数据库清理完成', 'success')
+}
+
+async function handleDataTransfer(action: () => Promise<{ message: string; count: number } | null>): Promise<void> {
+  try {
+    const result = await action()
+    if (!result) return
+    status.value = result.message
+    statusType.value = 'success'
+    showToast(`${result.message}（${result.count} 条）`, 'success')
+    await Promise.all([loadTemplates(), loadDatabaseInfo()])
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : '数据导入导出失败'
+    statusType.value = 'error'
+    showToast(status.value, 'error')
+  }
+}
+
+function exportAiHistoryJson(): Promise<void> {
+  return handleDataTransfer(() => devtoolsApi.settings.exportAiHistory('json'))
+}
+
+function exportAiHistoryMarkdown(): Promise<void> {
+  return handleDataTransfer(() => devtoolsApi.settings.exportAiHistory('markdown'))
+}
+
+function exportPromptTemplates(): Promise<void> {
+  return handleDataTransfer(() => devtoolsApi.settings.exportPromptTemplates())
+}
+
+function importPromptTemplates(): Promise<void> {
+  return handleDataTransfer(() => devtoolsApi.settings.importPromptTemplates())
+}
+
+function exportApiRequests(): Promise<void> {
+  return handleDataTransfer(() => devtoolsApi.settings.exportApiRequests())
+}
+
+function importApiRequests(): Promise<void> {
+  return handleDataTransfer(() => devtoolsApi.settings.importApiRequests())
+}
+
+watch(selectedTaskType, () => {
+  void loadTemplates()
+})
+
+onMounted(async () => {
+  await Promise.all([loadSettings(), loadTemplates(), loadDatabaseInfo()])
+})
+</script>
+
+<template>
+  <section class="tool-panel">
+    <header class="tool-header">
+      <div class="tool-title">
+        <h2>设置</h2>
+        <p>配置硅基流动模型、本地工作目录和 API 请求超时。</p>
+      </div>
+      <button class="button" type="button" @click="saveSettings">
+        <Save :size="16" />
+        保存
+      </button>
+    </header>
+
+    <div class="tool-body">
+      <div class="tabs settings-tabs">
+        <button class="tab-button" :class="{ active: activeSettingsTab === 'base' }" type="button" @click="activeSettingsTab = 'base'">
+          基础配置
+        </button>
+        <button class="tab-button" :class="{ active: activeSettingsTab === 'templates' }" type="button" @click="activeSettingsTab = 'templates'">
+          Prompt 模板
+        </button>
+        <button class="tab-button" :class="{ active: activeSettingsTab === 'database' }" type="button" @click="activeSettingsTab = 'database'">
+          数据维护
+        </button>
+      </div>
+
+      <div v-show="activeSettingsTab === 'base'" class="split-grid settings-tab-panel">
+        <div class="section">
+          <div class="field">
+            <label for="siliconflow-key">硅基流动 API Key</label>
+            <input id="siliconflow-key" v-model="apiKey" class="input" type="password" placeholder="留空表示不修改现有密钥" />
+          </div>
+
+          <div class="field">
+            <label for="model">模型</label>
+            <select id="model" v-model="settings.openaiModel" class="select">
+              <option value="Qwen/Qwen2.5-7B-Instruct">Qwen/Qwen2.5-7B-Instruct</option>
+              <option value="Qwen/Qwen2.5-Coder-7B-Instruct">Qwen/Qwen2.5-Coder-7B-Instruct</option>
+              <option value="Qwen/Qwen2.5-14B-Instruct">Qwen/Qwen2.5-14B-Instruct</option>
+              <option value="deepseek-ai/DeepSeek-V3">deepseek-ai/DeepSeek-V3</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="timeout">API 请求超时</label>
+            <input id="timeout" v-model.number="settings.apiTimeoutMs" class="input" type="number" min="1000" step="1000" />
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="field">
+            <label for="workspace">默认工作目录</label>
+            <div class="inline-row">
+              <input id="workspace" v-model="settings.defaultWorkspace" class="input" placeholder="选择本地项目目录" />
+              <button class="button secondary" type="button" @click="selectDirectory">
+                <FolderOpen :size="16" />
+                选择
+              </button>
+            </div>
+          </div>
+
+          <label class="toggle-row">
+            <input v-model="settings.autoFormatJsonResponse" type="checkbox" />
+            <span>自动格式化 JSON 响应</span>
+          </label>
+
+          <div class="code-box">
+            Provider: SiliconFlow
+            Base URL: {{ settings.openaiBaseURL }}
+            Model: {{ settings.openaiModel }}
+            API Key: {{ settings.hasOpenaiApiKey ? `已读取（${apiKeySourceLabel}）` : '未读取到' }}
+            Timeout: {{ settings.apiTimeoutMs }}ms
+          </div>
+
+          <button class="button secondary" type="button" :disabled="testingAi" @click="testAiConnection">
+            {{ testingAi ? '测试中' : '测试模型连接' }}
+          </button>
+
+          <div v-if="connectionResult" class="code-box connection-diagnostics" :class="{ 'diagnostic-error': !connectionResult.ok }">
+            Result: {{ connectionResult.ok ? 'OK' : 'FAILED' }}
+            Model: {{ connectionResult.model || settings.openaiModel }}
+            Base URL: {{ connectionResult.baseURL || settings.openaiBaseURL }}
+            Duration: {{ connectionResult.durationMs ?? 0 }}ms
+            {{ connectionResult.ok ? `Message: ${connectionResult.text}` : `Error: ${connectionResult.error}` }}
+          </div>
+        </div>
+      </div>
+
+      <div v-show="activeSettingsTab === 'templates'" class="section settings-tab-panel">
+        <div class="meta-row">
+          <h3>Prompt 模板管理</h3>
+          <span class="badge">{{ selectedTaskLabel }}</span>
+          <span v-if="selectedTemplate?.isBuiltin" class="badge">内置模板</span>
+          <span v-else-if="selectedTemplate" class="badge success">自定义模板</span>
+        </div>
+
+        <div class="template-manager-grid">
+          <div class="section">
+            <div class="field">
+              <label for="template-task-type">任务类型</label>
+              <select id="template-task-type" v-model="selectedTaskType" class="select" :disabled="loadingTemplates">
+                <option v-for="item in taskOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="template-list">模板</label>
+              <select id="template-list" v-model="selectedTemplateId" class="select" :disabled="loadingTemplates" @change="applySelectedTemplate">
+                <option value="">新建自定义模板</option>
+                <option v-for="item in templates" :key="item.id" :value="item.id">
+                  {{ item.isBuiltin ? '内置 · ' : '自定义 · ' }}{{ item.name }}
+                </option>
+              </select>
+            </div>
+
+            <div class="toolbar">
+              <button class="button secondary" type="button" @click="createTemplate">
+                <Plus :size="16" />
+                新建
+              </button>
+              <button class="button secondary" type="button" :disabled="!selectedTemplate || selectedTemplate.isBuiltin" @click="deleteTemplate">
+                <Trash2 :size="16" />
+                删除
+              </button>
+              <button class="button secondary" type="button" @click="resetTemplates">
+                <RefreshCw :size="16" />
+                重置内置
+              </button>
+            </div>
+
+            <div class="code-box template-help">
+              使用 <code v-pre>{{变量名}}</code> 定义模板变量。各工具页面会根据变量渲染最终 Prompt，例如代码解释使用 <code v-pre>{{code}}</code>，API 分析使用 <code v-pre>{{requestAndResponse}}</code>。
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="field">
+              <label for="template-name">模板名称</label>
+              <input id="template-name" v-model="templateName" class="input" placeholder="自定义模板名称" />
+            </div>
+
+            <div class="field">
+              <label for="template-content">模板内容</label>
+              <textarea id="template-content" v-model="templateDraft" class="textarea prompt-template-editor template-editor-large" spellcheck="false" />
+            </div>
+
+            <div class="meta-row">
+              <span class="badge">变量</span>
+              <span v-for="name in templateVariables" :key="name" class="badge">{{ name }}</span>
+              <span v-if="!templateVariables.length" class="badge">无变量</span>
+            </div>
+
+            <div class="toolbar">
+              <button class="button" type="button" :disabled="!templateDraft.trim()" @click="saveTemplate">
+                <Save :size="16" />
+                {{ selectedTemplate && !selectedTemplate.isBuiltin ? '保存修改' : '保存为自定义模板' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="activeSettingsTab === 'database'" class="section settings-tab-panel">
+        <div class="meta-row">
+          <h3>SQLite 数据维护</h3>
+          <span class="badge">{{ databaseInfo?.exists ? '已初始化' : '未生成' }}</span>
+          <span class="badge">{{ databaseSizeLabel }}</span>
+        </div>
+
+        <div class="template-manager-grid">
+          <div class="section">
+            <div class="code-box database-path">
+              Path: {{ databaseInfo?.path || '正在读取' }}
+              Updated: {{ databaseInfo?.updatedAt ? new Date(databaseInfo.updatedAt).toLocaleString() : '暂无' }}
+            </div>
+
+            <div class="toolbar">
+              <button class="button secondary" type="button" @click="loadDatabaseInfo">
+                <RefreshCw :size="16" />
+                刷新状态
+              </button>
+              <button class="button secondary" type="button" @click="backupDatabase">
+                备份
+              </button>
+              <button class="button secondary" type="button" @click="restoreDatabase">
+                恢复
+              </button>
+            </div>
+
+            <div class="field">
+              <label>清理数据</label>
+              <label class="toggle-row">
+                <input v-model="databaseCleanup.aiHistory" type="checkbox" />
+                <span>AI 历史</span>
+              </label>
+              <label class="toggle-row">
+                <input v-model="databaseCleanup.apiHistory" type="checkbox" />
+                <span>API 请求历史</span>
+              </label>
+              <label class="toggle-row">
+                <input v-model="databaseCleanup.apiSavedRequests" type="checkbox" />
+                <span>API 请求集合</span>
+              </label>
+              <label class="toggle-row">
+                <input v-model="databaseCleanup.customPromptTemplates" type="checkbox" />
+                <span>自定义 Prompt 模板</span>
+              </label>
+              <button class="button secondary" type="button" @click="cleanupDatabase">执行清理</button>
+            </div>
+
+            <div class="field">
+              <label>导入导出</label>
+              <div class="toolbar">
+                <button class="button secondary" type="button" @click="exportAiHistoryJson">导出 AI 历史 JSON</button>
+                <button class="button secondary" type="button" @click="exportAiHistoryMarkdown">导出 AI 历史 Markdown</button>
+              </div>
+              <div class="toolbar">
+                <button class="button secondary" type="button" @click="exportPromptTemplates">导出模板</button>
+                <button class="button secondary" type="button" @click="importPromptTemplates">导入模板</button>
+              </div>
+              <div class="toolbar">
+                <button class="button secondary" type="button" @click="exportApiRequests">导出 API 请求集合</button>
+                <button class="button secondary" type="button" @click="importApiRequests">导入 API 请求集合</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="history-list">
+              <div v-for="item in databaseInfo?.tables ?? []" :key="item.table" class="list-item action-item">
+                <div>
+                  <strong>{{ item.label }}</strong>
+                  <small>{{ item.table }}</small>
+                </div>
+                <span class="badge">{{ item.rows }}</span>
+              </div>
+            </div>
+            <div v-if="!databaseInfo" class="empty-state compact-empty">正在读取数据库状态</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="status-bar" :class="statusType">{{ status }}</footer>
+  </section>
+</template>

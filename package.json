@@ -1,0 +1,72 @@
+{
+  "name": "devtools-codex",
+  "version": "0.1.0",
+  "description": "AI development toolbox built with Electron, Vue, and Codex workflows.",
+  "main": "out/main/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "set ELECTRON_RUN_AS_NODE=& electron-vite dev",
+    "build": "npm run typecheck && electron-vite build && npm run verify:build",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "start": "set ELECTRON_RUN_AS_NODE=& electron-vite preview",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
+    "lint": "npm run typecheck",
+    "test": "node tests/smoke.mjs",
+    "verify:build": "node scripts/verify-build.mjs"
+  },
+  "build": {
+    "appId": "com.codexbox.devtools",
+    "productName": "AI 开发工具箱",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "dependencies": {
+    "@vitejs/plugin-vue": "5.2.4",
+    "dotenv": "16.4.7",
+    "lucide-vue-next": "0.468.0",
+    "markdown-it": "^14.1.1",
+    "openai": "4.104.0",
+    "sql.js": "^1.12.0",
+    "vue": "3.5.13",
+    "vue-router": "4.5.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "22.10.2",
+    "electron": "30.5.1",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "3.1.0",
+    "typescript": "5.7.3",
+    "vite": "6.4.2",
+    "vue-tsc": "2.2.0"
+  }
+}
