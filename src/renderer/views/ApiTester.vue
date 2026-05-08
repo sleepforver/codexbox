@@ -6,6 +6,7 @@ import { devtoolsApi } from '../devtoolsApi'
 import { isApiSendError } from '../ipcGuards'
 import { renderMarkdown } from '../markdown'
 import { renderPromptTemplate } from '../promptTemplates'
+import { safeLoad } from '../safeLoad'
 import { showToast } from '../toast'
 
 const aiTaskType: AiTaskType = 'api-debug'
@@ -328,9 +329,7 @@ async function deleteAiHistoryItem(id: string): Promise<void> {
 async function clearAiHistory(): Promise<void> {
   if (!aiHistory.value.length) return
   if (!window.confirm('确认清空 API AI 分析历史？')) return
-  for (const item of aiHistory.value) {
-    aiHistory.value = await devtoolsApi.ai.deleteHistory(item.id, aiTaskType)
-  }
+  aiHistory.value = await devtoolsApi.ai.clearHistory(aiTaskType)
   showToast('AI 历史已清空', 'success')
 }
 
@@ -384,7 +383,9 @@ watch(method, (value) => {
   if (['GET', 'HEAD'].includes(value)) body.value = ''
 })
 
-onMounted(loadState)
+onMounted(() => {
+  void safeLoad('读取 API 测试器状态', loadState)
+})
 </script>
 
 <template>

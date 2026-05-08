@@ -11,7 +11,8 @@ import type {
 } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { isAiConnectionError } from '../ipcGuards'
-import { extractPromptVariables } from '../promptTemplates'
+import { extractPromptVariables, renderPromptTemplate } from '../promptTemplates'
+import { safeLoadAll } from '../safeLoad'
 import { showToast } from '../toast'
 
 const taskOptions: Array<{ value: AiTaskType; label: string }> = [
@@ -47,11 +48,13 @@ const templates = ref<AiPromptTemplate[]>([])
 const selectedTemplateId = ref('')
 const templateName = ref('')
 const templateDraft = ref('')
+const templatePreviewVariables = ref<Record<string, string>>({})
 const loadingTemplates = ref(false)
 const status = ref('正在读取设置')
 const statusType = ref<'idle' | 'success' | 'error'>('idle')
 const selectedTemplate = computed(() => templates.value.find((item) => item.id === selectedTemplateId.value))
 const templateVariables = computed(() => extractPromptVariables(templateDraft.value))
+const templatePreview = computed(() => renderPromptTemplate(templateDraft.value, templatePreviewVariables.value))
 const selectedTaskLabel = computed(() => taskOptions.find((item) => item.value === selectedTaskType.value)?.label ?? selectedTaskType.value)
 const apiKeySourceLabel = computed(() => {
   if (settings.value.apiKeySource === 'env') return '.env / 环境变量'
@@ -131,12 +134,32 @@ function applySelectedTemplate(): void {
   const template = selectedTemplate.value
   templateName.value = template?.isBuiltin ? '' : template?.name ?? ''
   templateDraft.value = template?.content ?? ''
+  syncTemplatePreviewVariables()
 }
 
 function createTemplate(): void {
   selectedTemplateId.value = ''
   templateName.value = `${selectedTaskLabel.value}自定义模板`
   templateDraft.value = ''
+  syncTemplatePreviewVariables()
+}
+
+function syncTemplatePreviewVariables(): void {
+  const nextVariables: Record<string, string> = {}
+  templateVariables.value.forEach((name) => {
+    nextVariables[name] = templatePreviewVariables.value[name] ?? defaultTemplateVariableValue(name)
+  })
+  templatePreviewVariables.value = nextVariables
+}
+
+function defaultTemplateVariableValue(name: string): string {
+  const samples: Record<string, string> = {
+    code: 'function validateFeature(feature) {\n  return Boolean(feature.geometry)\n}',
+    requiredFields: 'lineName, voltage, towerId, geometry',
+    requestAndResponse: '{\n  "request": { "method": "GET", "url": "/power-lines" },\n  "response": { "status": 500, "body": "Internal Server Error" }\n}',
+    diff: 'diff --git a/src/geo.ts b/src/geo.ts\n+ 增加线路坐标范围检查'
+  }
+  return samples[name] ?? `${name} 示例值`
 }
 
 async function saveTemplate(): Promise<void> {
@@ -162,6 +185,21 @@ async function saveTemplate(): Promise<void> {
     ''
   applySelectedTemplate()
   status.value = editableTemplateId ? '模板已更新' : '模板已保存'
+  statusType.value = 'success'
+  showToast(status.value, 'success')
+}
+
+async function duplicateTemplate(): Promise<void> {
+  if (!templateDraft.value.trim()) return
+  templates.value = await devtoolsApi.ai.savePromptTemplate({
+    taskType: selectedTaskType.value,
+    name: `${templateName.value || selectedTemplate.value?.name || selectedTaskLabel.value}（副本）`,
+    content: templateDraft.value,
+    variables: templateVariables.value
+  })
+  selectedTemplateId.value = templates.value.find((item) => !item.isBuiltin && item.name.endsWith('（副本）'))?.id ?? templates.value[0]?.id ?? ''
+  applySelectedTemplate()
+  status.value = '模板副本已创建'
   statusType.value = 'success'
   showToast(status.value, 'success')
 }
@@ -223,7 +261,10 @@ async function handleDataTransfer(action: () => Promise<{ message: string; count
     status.value = result.message
     statusType.value = 'success'
     showToast(`${result.message}（${result.count} 条）`, 'success')
-    await Promise.all([loadTemplates(), loadDatabaseInfo()])
+    await safeLoadAll([
+      { label: '刷新 Prompt 模板', work: loadTemplates },
+      { label: '刷新数据库信息', work: loadDatabaseInfo }
+    ])
   } catch (error) {
     status.value = error instanceof Error ? error.message : '数据导入导出失败'
     statusType.value = 'error'
@@ -259,8 +300,16 @@ watch(selectedTaskType, () => {
   void loadTemplates()
 })
 
+watch(templateDraft, () => {
+  syncTemplatePreviewVariables()
+})
+
 onMounted(async () => {
-  await Promise.all([loadSettings(), loadTemplates(), loadDatabaseInfo()])
+  await safeLoadAll([
+    { label: '读取设置', work: loadSettings },
+    { label: '读取 Prompt 模板', work: loadTemplates },
+    { label: '读取数据库信息', work: loadDatabaseInfo }
+  ])
 })
 </script>
 
@@ -384,6 +433,9 @@ onMounted(async () => {
                 <Plus :size="16" />
                 新建
               </button>
+              <button class="button secondary" type="button" :disabled="!templateDraft.trim()" @click="duplicateTemplate">
+                另存为副本
+              </button>
               <button class="button secondary" type="button" :disabled="!selectedTemplate || selectedTemplate.isBuiltin" @click="deleteTemplate">
                 <Trash2 :size="16" />
                 删除
@@ -416,6 +468,30 @@ onMounted(async () => {
               <span v-if="!templateVariables.length" class="badge">无变量</span>
             </div>
 
+            <div v-if="templateVariables.length" class="section template-preview-section">
+              <div class="meta-row">
+                <strong>预览变量</strong>
+              </div>
+              <div v-for="name in templateVariables" :key="name" class="field">
+                <label :for="`preview-var-${name}`">{{ name }}</label>
+                <textarea
+                  v-if="['code', 'requestAndResponse', 'diff'].includes(name)"
+                  :id="`preview-var-${name}`"
+                  v-model="templatePreviewVariables[name]"
+                  class="textarea prompt-template-editor"
+                  spellcheck="false"
+                />
+                <input v-else :id="`preview-var-${name}`" v-model="templatePreviewVariables[name]" class="input" />
+              </div>
+            </div>
+
+            <div class="section template-preview-section">
+              <div class="meta-row">
+                <strong>渲染预览</strong>
+              </div>
+              <pre class="output-box template-preview-box">{{ templatePreview || '模板预览会显示在这里' }}</pre>
+            </div>
+
             <div class="toolbar">
               <button class="button" type="button" :disabled="!templateDraft.trim()" @click="saveTemplate">
                 <Save :size="16" />
@@ -437,6 +513,7 @@ onMounted(async () => {
           <div class="section">
             <div class="code-box database-path">
               Path: {{ databaseInfo?.path || '正在读取' }}
+              Version: {{ databaseInfo?.schemaVersion ?? '正在读取' }}
               Updated: {{ databaseInfo?.updatedAt ? new Date(databaseInfo.updatedAt).toLocaleString() : '暂无' }}
             </div>
 

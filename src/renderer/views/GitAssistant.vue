@@ -6,6 +6,7 @@ import { devtoolsApi } from '../devtoolsApi'
 import { isGitActionError, isGitCommandError, isGitCommitError } from '../ipcGuards'
 import { renderMarkdown } from '../markdown'
 import { renderPromptTemplate } from '../promptTemplates'
+import { safeLoad } from '../safeLoad'
 import { showToast } from '../toast'
 
 const cwd = ref('')
@@ -207,9 +208,10 @@ async function clearAiHistory(): Promise<void> {
   const currentItems = aiHistory.value.filter((item) => item.taskType === gitAiTaskType.value)
   if (!currentItems.length) return
   if (!window.confirm('确认清空当前 Git AI 历史？')) return
-  for (const item of currentItems) {
-    aiHistory.value = await devtoolsApi.ai.deleteHistory(item.id)
-  }
+  await devtoolsApi.ai.clearHistory(gitAiTaskType.value)
+  aiHistory.value = (await devtoolsApi.ai.getHistory()).filter(
+    (item) => item.taskType === 'git-summary' || item.taskType === 'commit-message'
+  )
   showToast('AI 历史已清空', 'success')
 }
 
@@ -263,9 +265,11 @@ function isStaged(status: string): boolean {
 }
 
 onMounted(async () => {
-  const [settings, historyItems] = await Promise.all([devtoolsApi.settings.get(), devtoolsApi.ai.getHistory(), loadTemplates()])
-  cwd.value = settings.defaultWorkspace
-  aiHistory.value = historyItems.filter((item) => item.taskType === 'git-summary' || item.taskType === 'commit-message')
+  await safeLoad('读取 Git 助手状态', async () => {
+    const [settings, historyItems] = await Promise.all([devtoolsApi.settings.get(), devtoolsApi.ai.getHistory(), loadTemplates()])
+    cwd.value = settings.defaultWorkspace
+    aiHistory.value = historyItems.filter((item) => item.taskType === 'git-summary' || item.taskType === 'commit-message')
+  })
 })
 </script>
 

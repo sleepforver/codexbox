@@ -5,6 +5,7 @@ import type { AiConfigResponse, AiHistoryItem, AiPromptTemplate, AiTaskType } fr
 import { devtoolsApi } from '../devtoolsApi'
 import { renderMarkdown } from '../markdown'
 import { extractPromptVariables, renderPromptTemplate } from '../promptTemplates'
+import { safeLoadAll } from '../safeLoad'
 import { showToast } from '../toast'
 
 const taskType: AiTaskType = 'generate-code'
@@ -182,14 +183,16 @@ async function deleteHistoryItem(id: string): Promise<void> {
 async function clearHistory(): Promise<void> {
   if (!history.value.length) return
   if (!window.confirm('确认清空代码生成历史？')) return
-  for (const item of history.value) {
-    history.value = await devtoolsApi.ai.deleteHistory(item.id, taskType)
-  }
+  history.value = await devtoolsApi.ai.clearHistory(taskType)
   showToast('历史记录已清空', 'success')
 }
 
 onMounted(async () => {
-  await Promise.all([loadConfig(), loadHistory(), loadTemplates()])
+  await safeLoadAll([
+    { label: '读取 AI 配置', work: loadConfig },
+    { label: '读取 AI 历史', work: loadHistory },
+    { label: '读取 Prompt 模板', work: loadTemplates }
+  ])
 })
 
 watch(selectedTemplateId, () => {
