@@ -10,6 +10,7 @@
 - 电力地理：GeoJSON 体检、几何类型统计、坐标范围和必填属性检查。
 - AI 解释代码：模板化 Prompt、流式输出、Markdown 渲染、历史详情。
 - AI 生成代码：模板化需求、流式输出、复制首个代码块、历史详情。
+- AI 历史中心：统一检索、查看、复制、删除和重新执行 AI 历史。
 - 设置中心：模型连接诊断、Prompt 模板统一管理、SQLite 维护、导入导出。
 
 ## 环境准备
@@ -28,33 +29,11 @@ SILICONFLOW_MODEL=Qwen/Qwen2.5-7B-Instruct
 
 ## 启动与验证
 
-安装依赖：
-
 ```powershell
 npm.cmd install
-```
-
-开发启动：
-
-```powershell
 npm.cmd run dev
-```
-
-类型检查：
-
-```powershell
 npm.cmd run typecheck
-```
-
-轻量测试：
-
-```powershell
 npm.cmd test
-```
-
-生产构建：
-
-```powershell
 npm.cmd run build
 ```
 
@@ -62,45 +41,51 @@ npm.cmd run build
 
 ```powershell
 npm.cmd run pack
+npm.cmd run dist
 ```
 
-## VS Code 任务
+## 架构说明
 
-`.vscode/tasks.json` 已提供：
+主进程负责本地能力、文件系统、SQLite、Git 和 AI 请求；渲染进程只负责界面和调用 `devtoolsApi`。
 
-- `DevTools: Start`
-- `DevTools: Stop`
-- `DevTools: Typecheck`
-- `DevTools: Build`
-- `DevTools: Package`
+关键目录：
 
-启动任务会清空 `ELECTRON_RUN_AS_NODE`，避免 Electron 启动异常。
+```text
+electron/main/db/             SQLite 连接、schema、迁移和仓储
+electron/main/ipc/            IPC 模块化注册
+electron/main/services/       业务服务门面
+electron/main/validation/     zod 运行时校验
+src/shared/ipc.ts             主进程和渲染进程共享类型契约
+src/renderer/safeLoad.ts      页面初始化兜底加载工具
+```
 
 ## 数据存储
 
-SQLite 数据库位于项目内：
+开发环境 SQLite 数据库位于项目内：
 
 ```text
 data/devtools-codex.db
 ```
 
-该目录已被 `.gitignore` 忽略。设置页的数据维护支持：
+打包环境会自动使用 Electron `userData/data` 目录，避免安装目录不可写。设置页会显示真实数据库路径、schema 版本、大小、更新时间和表统计。
 
-- 查看数据库路径、大小、更新时间和表统计。
-- 备份数据库到 `data/backups/`。
+数据库维护支持：
+
+- 备份数据库到 `backups/`。
 - 从 `.db/.sqlite/.sqlite3` 文件恢复数据库。
 - 清理 AI 历史、API 请求历史、API 请求集合、自定义 Prompt 模板。
+- 使用 `schema_version` 支持后续版本迁移。
 
 ## 导入导出
 
-设置页的数据维护支持：
+设置页支持：
 
 - 导出 AI 历史为 JSON。
 - 导出 AI 历史为 Markdown。
 - 导出 / 导入 Prompt 模板 JSON。
 - 导出 / 导入 API 请求集合 JSON。
 
-JSON 导出使用统一结构：
+JSON 导出使用统一结构，导入时会进行运行时格式校验：
 
 ```json
 {
@@ -119,10 +104,4 @@ JSON 导出使用统一结构：
 npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
-```
-
-如需生成安装包，继续执行：
-
-```powershell
-npm.cmd run dist
 ```
