@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { Clipboard, MapPinned, Play, RefreshCw } from 'lucide-vue-next'
-import type { GeoAnalyzeResponse } from '../../shared/ipc'
+import { computed, onMounted, ref } from 'vue'
+import { Clipboard, MapPinned, Play, RefreshCw, Trash2 } from 'lucide-vue-next'
+import type { GeoAnalyzeHistoryItem, GeoAnalyzeResponse, WorkspaceProject } from '../../shared/ipc'
+import { devtoolsApi } from '../devtoolsApi'
 import { isGeoAnalyzeError } from '../ipcGuards'
+import { safeLoad } from '../safeLoad'
 import { showToast } from '../toast'
 
 const sample = JSON.stringify(
@@ -31,8 +33,20 @@ const sample = JSON.stringify(
   2
 )
 
+const fieldTemplates = [
+  { value: 'line', label: '线路', title: '线路 GeoJSON 体检', fields: 'lineName,voltage,geometry' },
+  { value: 'tower', label: '杆塔', title: '杆塔 GeoJSON 体检', fields: 'towerId,lineName,voltage,geometry' },
+  { value: 'station', label: '站点', title: '站点 GeoJSON 体检', fields: 'stationName,voltage,geometry' },
+  { value: 'ledger', label: '综合台账', title: '电力地理台账体检', fields: 'lineName,towerId,stationName,voltage,geometry' }
+]
+
 const source = ref(sample)
+const selectedFieldTemplate = ref('tower')
 const requiredProperties = ref('towerId,lineName,voltage')
+const reportTitle = ref('城南一线 GeoJSON 体检')
+const projects = ref<WorkspaceProject[]>([])
+const selectedProjectId = ref('')
+const histories = ref<GeoAnalyzeHistoryItem[]>([])
 const result = ref<GeoAnalyzeResponse | null>(null)
 const loading = ref(false)
 const status = ref('等待分析 GeoJSON')
@@ -44,12 +58,38 @@ const requiredList = computed(() =>
     .map((item) => item.trim())
     .filter(Boolean)
 )
+const selectedProjectLabel = computed(() => {
+  if (!selectedProjectId.value) return '全部项目'
+  return projects.value.find((item) => item.id === selectedProjectId.value)?.name ?? '未知项目'
+})
+
+function getProjectName(projectId?: string): string {
+  if (!projectId) return '未关联项目'
+  return projects.value.find((item) => item.id === projectId)?.name ?? '未知项目'
+}
+
+async function loadProjects(): Promise<void> {
+  projects.value = await devtoolsApi.projects.list()
+  selectedProjectId.value = selectedProjectId.value || projects.value[0]?.id || ''
+}
+
+async function loadHistories(): Promise<void> {
+  histories.value = await devtoolsApi.geo.getHistory(selectedProjectId.value || undefined)
+}
+
+async function handleProjectChange(): Promise<void> {
+  await loadHistories()
+  status.value = `已切换到 ${selectedProjectLabel.value}`
+  statusType.value = 'idle'
+}
 
 async function analyze(): Promise<void> {
   loading.value = true
-  result.value = await window.devtoolsApi.geo.analyze({
+  result.value = await devtoolsApi.geo.analyze({
     source: source.value,
-    requiredProperties: requiredList.value
+    requiredProperties: requiredList.value,
+    projectId: selectedProjectId.value || undefined,
+    title: reportTitle.value
   })
   loading.value = false
 
@@ -60,6 +100,7 @@ async function analyze(): Promise<void> {
     return
   }
 
+  await loadHistories()
   status.value = `分析完成，发现 ${result.value.issues.length} 个问题`
   statusType.value = 'success'
   showToast(status.value, 'success')
@@ -67,7 +108,19 @@ async function analyze(): Promise<void> {
 
 function loadSample(): void {
   source.value = sample
+  selectedFieldTemplate.value = 'tower'
+  requiredProperties.value = 'towerId,lineName,voltage'
+  reportTitle.value = '城南一线 GeoJSON 体检'
   status.value = '已载入示例 GeoJSON'
+  statusType.value = 'idle'
+}
+
+function applyFieldTemplate(): void {
+  const template = fieldTemplates.find((item) => item.value === selectedFieldTemplate.value)
+  if (!template) return
+  requiredProperties.value = template.fields
+  reportTitle.value = template.title
+  status.value = `已应用${template.label}字段模板`
   statusType.value = 'idle'
 }
 
@@ -76,6 +129,39 @@ async function copyReport(): Promise<void> {
   await navigator.clipboard.writeText(JSON.stringify(result.value, null, 2))
   showToast('分析报告已复制', 'success')
 }
+
+function selectHistory(item: GeoAnalyzeHistoryItem): void {
+  source.value = item.source
+  requiredProperties.value = item.requiredProperties.join(',')
+  reportTitle.value = item.title
+  result.value = item.result
+  status.value = `已载入历史报告：${item.title}`
+  statusType.value = 'idle'
+}
+
+async function deleteHistory(item: GeoAnalyzeHistoryItem): Promise<void> {
+  await devtoolsApi.geo.deleteHistory(item.id)
+  await loadHistories()
+  status.value = '地理体检历史已删除'
+  statusType.value = 'success'
+  showToast(status.value, 'success')
+}
+
+async function clearHistory(): Promise<void> {
+  if (!histories.value.length) return
+  if (!window.confirm(`确认清空 ${selectedProjectLabel.value} 的 ${histories.value.length} 条地理体检历史？`)) return
+  histories.value = await devtoolsApi.geo.clearHistory(selectedProjectId.value || undefined)
+  status.value = '地理体检历史已清空'
+  statusType.value = 'success'
+  showToast(status.value, 'success')
+}
+
+onMounted(() => {
+  void safeLoad('读取电力地理体检历史', async () => {
+    await loadProjects()
+    await loadHistories()
+  })
+})
 </script>
 
 <template>
@@ -86,6 +172,7 @@ async function copyReport(): Promise<void> {
         <p>检查 GeoJSON 要素数量、几何类型、坐标范围和杆塔/线路台账必填属性。</p>
       </div>
       <div class="toolbar">
+        <span class="pill">{{ selectedProjectLabel }} · {{ histories.length }} 条历史</span>
         <button class="button secondary" type="button" @click="loadSample">
           <RefreshCw :size="16" />
           示例
@@ -104,9 +191,27 @@ async function copyReport(): Promise<void> {
     <div class="tool-body">
       <div class="split-grid">
         <div class="section">
+          <div class="request-row geo-input-row">
+            <label class="select-field">
+              <span>项目</span>
+              <select v-model="selectedProjectId" class="select" @change="handleProjectChange">
+                <option value="">全部项目</option>
+                <option v-for="project in projects" :key="project.id" :value="project.id">{{ project.name }}</option>
+              </select>
+            </label>
+            <div class="field">
+              <label for="geo-report-title">报告名称</label>
+              <input id="geo-report-title" v-model="reportTitle" class="input" placeholder="例如：城南一线 GeoJSON 体检" />
+            </div>
+          </div>
           <div class="field">
             <label for="required-properties">必填属性</label>
-            <input id="required-properties" v-model="requiredProperties" class="input" placeholder="towerId,lineName,voltage" />
+            <div class="inline-row">
+              <select v-model="selectedFieldTemplate" class="select select-compact" @change="applyFieldTemplate">
+                <option v-for="template in fieldTemplates" :key="template.value" :value="template.value">{{ template.label }}</option>
+              </select>
+              <input id="required-properties" v-model="requiredProperties" class="input" placeholder="towerId,lineName,voltage" />
+            </div>
           </div>
           <label class="badge" for="geo-source">GeoJSON 输入</label>
           <textarea id="geo-source" v-model="source" class="textarea" spellcheck="false" />
@@ -151,6 +256,32 @@ async function copyReport(): Promise<void> {
 
           <pre v-else-if="result && !result.ok" class="output-box">{{ result.error }}</pre>
           <div v-else class="empty-state">分析结果会显示在这里</div>
+
+          <div class="section">
+            <div class="meta-row">
+              <MapPinned :size="16" />
+              <strong>体检历史</strong>
+              <button class="button secondary compact-button" type="button" :disabled="!histories.length" @click="clearHistory">
+                <Trash2 :size="14" />
+                清空
+              </button>
+            </div>
+            <div v-if="histories.length" class="history-list compact-history">
+              <div v-for="item in histories" :key="item.id" class="list-item action-item">
+                <button class="plain-list-button" type="button" @click="selectHistory(item)">
+                  <strong>{{ item.title }}</strong>
+                  <small>
+                    {{ getProjectName(item.projectId) }} · {{ item.featureCount }} 个要素 · {{ item.issueCount }} 个问题 ·
+                    {{ new Date(item.createdAt).toLocaleString() }}
+                  </small>
+                </button>
+                <button class="icon-button" type="button" title="删除历史" @click="deleteHistory(item)">
+                  <Trash2 :size="16" />
+                </button>
+              </div>
+            </div>
+            <div v-else class="empty-state compact-empty">暂无地理体检历史</div>
+          </div>
         </div>
       </div>
     </div>

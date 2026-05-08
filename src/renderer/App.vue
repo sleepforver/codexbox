@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { Bot, Braces, FolderKanban, GitBranch, Hammer, History, Map, Send, Settings, Sparkles } from 'lucide-vue-next'
+import type { WorkspaceProject } from '../shared/ipc'
+import { devtoolsApi } from './devtoolsApi'
 import { routes } from './routes'
+import { showToast } from './toast'
 import { toasts } from './toast'
 
 const route = useRoute()
+const router = useRouter()
+const recentProjects = ref<WorkspaceProject[]>([])
+const selectedRecentProjectId = ref('')
 const navItems = [
   { path: '/projects', label: '项目工作区', description: '项目目录与标签', icon: FolderKanban },
   { path: '/json', label: 'JSON工具', description: '格式化、压缩、校验', icon: Braces },
@@ -20,6 +26,33 @@ const navItems = [
 
 const currentTitle = computed(() => {
   return routes.find((item) => item.path === route.path)?.meta?.label ?? 'AI 开发工具箱'
+})
+
+async function loadRecentProjects(): Promise<void> {
+  try {
+    recentProjects.value = await devtoolsApi.projects.list()
+    selectedRecentProjectId.value = recentProjects.value[0]?.id ?? ''
+  } catch (error) {
+    recentProjects.value = []
+    selectedRecentProjectId.value = ''
+    showToast(error instanceof Error ? error.message : '最近项目读取失败', 'error')
+  }
+}
+
+async function openRecentProject(): Promise<void> {
+  if (!selectedRecentProjectId.value) return
+  try {
+    recentProjects.value = await devtoolsApi.projects.markOpened(selectedRecentProjectId.value)
+    const project = recentProjects.value.find((item) => item.id === selectedRecentProjectId.value)
+    showToast(project ? `已切换最近项目：${project.name}` : '已切换最近项目', 'success')
+    await router.push('/projects')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '打开最近项目失败', 'error')
+  }
+}
+
+onMounted(() => {
+  void loadRecentProjects()
 })
 </script>
 
@@ -53,7 +86,16 @@ const currentTitle = computed(() => {
           <p class="eyebrow">本地开发者工作台</p>
           <h1>{{ currentTitle }}</h1>
         </div>
-        <div class="runtime-pill">SiliconFlow + Electron + Vue</div>
+        <div class="workspace-actions">
+          <select v-model="selectedRecentProjectId" class="select select-compact recent-project-select" :disabled="!recentProjects.length">
+            <option value="">暂无项目</option>
+            <option v-for="project in recentProjects" :key="project.id" :value="project.id">{{ project.name }}</option>
+          </select>
+          <button class="button secondary compact-button" type="button" :disabled="!selectedRecentProjectId" @click="openRecentProject">
+            最近项目
+          </button>
+          <div class="runtime-pill">SiliconFlow + Electron + Vue</div>
+        </div>
       </header>
 
       <RouterView />

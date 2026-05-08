@@ -41,6 +41,7 @@ const databaseCleanup = ref<Required<DatabaseMaintenanceCleanupRequest>>({
   aiHistory: true,
   apiHistory: false,
   apiSavedRequests: false,
+  geoAnalysisHistory: false,
   customPromptTemplates: false
 })
 const selectedTaskType = ref<AiTaskType>('explain-code')
@@ -543,6 +544,10 @@ onMounted(async () => {
               <label class="toggle-row">
                 <input v-model="databaseCleanup.apiSavedRequests" type="checkbox" />
                 <span>API 请求集合</span>
+              </label>
+              <label class="toggle-row">
+                <input v-model="databaseCleanup.geoAnalysisHistory" type="checkbox" />
+                <span>地理体检历史</span>
               </label>
               <label class="toggle-row">
                 <input v-model="databaseCleanup.customPromptTemplates" type="checkbox" />

@@ -49,6 +49,7 @@ async function loadHistory(): Promise<void> {
 
 async function loadProjects(): Promise<void> {
   projects.value = await devtoolsApi.projects.list()
+  selectedProjectId.value = selectedProjectId.value || projects.value[0]?.id || ''
 }
 
 async function loadTemplates(): Promise<void> {

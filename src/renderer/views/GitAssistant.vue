@@ -280,6 +280,10 @@ onMounted(async () => {
     ])
     cwd.value = settings.defaultWorkspace
     projects.value = projectItems
+    selectedProjectId.value = selectedProjectId.value || projects.value[0]?.id || ''
+    if (selectedProjectId.value) {
+      cwd.value = projects.value.find((item) => item.id === selectedProjectId.value)?.path ?? cwd.value
+    }
     aiHistory.value = historyItems.filter((item) => item.taskType === 'git-summary' || item.taskType === 'commit-message')
   })
 })

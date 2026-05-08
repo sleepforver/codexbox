@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { Bot, Clipboard, RefreshCw, Search, Square, Trash2 } from 'lucide-vue-next'
-import type { AiHistoryItem, AiTaskType } from '../../shared/ipc'
+import type { AiHistoryItem, AiTaskType, WorkspaceProject } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { renderMarkdown } from '../markdown'
 import { safeLoad } from '../safeLoad'
@@ -17,7 +17,9 @@ const taskOptions: Array<{ value: AiTaskType | 'all'; label: string }> = [
 ]
 
 const histories = ref<AiHistoryItem[]>([])
+const projects = ref<WorkspaceProject[]>([])
 const selectedTaskType = ref<AiTaskType | 'all'>('all')
+const selectedProjectId = ref('')
 const keyword = ref('')
 const selectedItem = ref<AiHistoryItem | null>(null)
 const output = ref('')
@@ -38,12 +40,30 @@ const filteredHistories = computed(() => {
 const renderedSelectedOutput = computed(() => renderMarkdown(selectedItem.value?.output ?? ''))
 const renderedOutput = computed(() => renderMarkdown(output.value))
 const selectedTaskLabel = computed(() => taskOptions.find((item) => item.value === selectedTaskType.value)?.label ?? '全部任务')
+const selectedProjectLabel = computed(() => {
+  if (!selectedProjectId.value) return '全部项目'
+  return projects.value.find((item) => item.id === selectedProjectId.value)?.name ?? '未知项目'
+})
+
+function getProjectName(projectId?: string): string {
+  if (!projectId) return '未关联项目'
+  return projects.value.find((item) => item.id === projectId)?.name ?? '未知项目'
+}
 
 async function loadHistories(): Promise<void> {
-  histories.value = await devtoolsApi.ai.getHistory()
+  histories.value = await devtoolsApi.ai.getHistory(undefined, selectedProjectId.value || undefined)
   selectedItem.value = histories.value[0] ?? null
-  status.value = `已读取 ${histories.value.length} 条 AI 历史`
+  status.value = `已读取 ${selectedProjectLabel.value} 的 ${histories.value.length} 条 AI 历史`
   statusType.value = 'success'
+}
+
+async function loadProjects(): Promise<void> {
+  projects.value = await devtoolsApi.projects.list()
+}
+
+async function handleProjectChange(): Promise<void> {
+  output.value = ''
+  await loadHistories()
 }
 
 function selectHistory(item: AiHistoryItem): void {
@@ -73,7 +93,8 @@ async function copyRerunOutput(): Promise<void> {
 
 async function deleteSelected(): Promise<void> {
   if (!selectedItem.value) return
-  histories.value = await devtoolsApi.ai.deleteHistory(selectedItem.value.id)
+  await devtoolsApi.ai.deleteHistory(selectedItem.value.id)
+  await loadHistories()
   selectedItem.value = filteredHistories.value[0] ?? histories.value[0] ?? null
   status.value = '历史记录已删除'
   statusType.value = 'success'
@@ -83,14 +104,15 @@ async function deleteSelected(): Promise<void> {
 async function clearFiltered(): Promise<void> {
   if (!filteredHistories.value.length) return
   if (!window.confirm(`确认清空当前筛选结果中的 ${filteredHistories.value.length} 条 AI 历史？`)) return
+  const projectId = selectedProjectId.value || undefined
   if (selectedTaskType.value === 'all' && !keyword.value.trim()) {
-    histories.value = await devtoolsApi.ai.clearHistory()
+    histories.value = await devtoolsApi.ai.clearHistory(undefined, projectId)
   } else if (selectedTaskType.value !== 'all' && !keyword.value.trim()) {
-    await devtoolsApi.ai.clearHistory(selectedTaskType.value)
-    histories.value = await devtoolsApi.ai.getHistory()
+    await devtoolsApi.ai.clearHistory(selectedTaskType.value, projectId)
+    await loadHistories()
   } else {
     await Promise.all(filteredHistories.value.map((item) => devtoolsApi.ai.deleteHistory(item.id)))
-    histories.value = await devtoolsApi.ai.getHistory()
+    await loadHistories()
   }
   selectedItem.value = filteredHistories.value[0] ?? histories.value[0] ?? null
   status.value = '筛选范围内的历史已清空'
@@ -147,14 +169,16 @@ async function rerunSelected(): Promise<void> {
 
 async function saveRerunHistory(source: AiHistoryItem, model: string): Promise<void> {
   if (!output.value.trim()) return
-  histories.value = await devtoolsApi.ai.saveHistory({
+  const savedHistories = await devtoolsApi.ai.saveHistory({
     taskType: source.taskType,
     title: `${source.title}（重新执行）`.slice(0, 60),
     prompt: source.prompt,
     output: output.value,
-    model
+    model,
+    projectId: source.projectId ?? (selectedProjectId.value || undefined)
   })
-  selectedItem.value = histories.value[0] ?? selectedItem.value
+  await loadHistories()
+  selectedItem.value = savedHistories[0] ?? histories.value[0] ?? selectedItem.value
 }
 
 async function stopRerun(): Promise<void> {
@@ -163,7 +187,10 @@ async function stopRerun(): Promise<void> {
 }
 
 onMounted(() => {
-  void safeLoad('读取 AI 历史中心', loadHistories)
+  void safeLoad('读取 AI 历史中心', async () => {
+    await loadProjects()
+    await loadHistories()
+  })
 })
 </script>
 
@@ -175,7 +202,7 @@ onMounted(() => {
         <p>统一检索、查看、复制、删除和重新执行 AI 历史记录。</p>
       </div>
       <div class="toolbar">
-        <span class="pill">{{ selectedTaskLabel }} · {{ filteredHistories.length }}</span>
+        <span class="pill">{{ selectedProjectLabel }} · {{ selectedTaskLabel }} · {{ filteredHistories.length }}</span>
         <button class="button secondary" type="button" @click="loadHistories">
           <RefreshCw :size="16" />
           刷新
@@ -190,7 +217,14 @@ onMounted(() => {
     <div class="tool-body">
       <div class="split-grid">
         <div class="section">
-          <div class="request-row">
+          <div class="request-row history-filter-row">
+            <label class="select-field">
+              <span>项目</span>
+              <select v-model="selectedProjectId" class="select" @change="handleProjectChange">
+                <option value="">全部项目</option>
+                <option v-for="project in projects" :key="project.id" :value="project.id">{{ project.name }}</option>
+              </select>
+            </label>
             <label class="select-field">
               <span>任务类型</span>
               <select v-model="selectedTaskType" class="select">
@@ -218,7 +252,7 @@ onMounted(() => {
             >
               <span class="badge">{{ taskOptions.find((option) => option.value === item.taskType)?.label ?? item.taskType }}</span>
               <strong>{{ item.title }}</strong>
-              <small>{{ item.model }} · {{ new Date(item.createdAt).toLocaleString() }}</small>
+              <small>{{ getProjectName(item.projectId) }} · {{ item.model }} · {{ new Date(item.createdAt).toLocaleString() }}</small>
             </button>
             <div v-if="!filteredHistories.length" class="empty-state compact-empty">暂无匹配历史</div>
           </div>
@@ -230,6 +264,7 @@ onMounted(() => {
               <Bot :size="16" />
               <strong>{{ selectedItem.title }}</strong>
               <span class="badge">{{ selectedItem.taskType }}</span>
+              <span class="badge">{{ getProjectName(selectedItem.projectId) }}</span>
             </div>
 
             <div class="toolbar">

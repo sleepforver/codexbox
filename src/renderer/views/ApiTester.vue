@@ -72,10 +72,12 @@ async function loadState(): Promise<void> {
   envVars.value = state.envVars.length ? state.envVars : [{ key: 'baseUrl', value: 'https://httpbin.org' }]
   history.value = state.history
   projects.value = projectItems
-  savedRequests.value = requests
+  const shouldUseRecentProject = !selectedProjectId.value && Boolean(projects.value[0])
+  selectedProjectId.value = selectedProjectId.value || projects.value[0]?.id || ''
+  savedRequests.value = shouldUseRecentProject ? await devtoolsApi.api.getSavedRequests(selectedProjectId.value) : requests
   timeoutMs.value = settings.apiTimeoutMs
   templates.value = promptTemplates
-  aiHistory.value = apiAiHistory
+  aiHistory.value = shouldUseRecentProject ? await devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value) : apiAiHistory
   selectedTemplateId.value = promptTemplates[0]?.id ?? ''
   templateDraft.value = promptTemplates[0]?.content ?? ''
 }

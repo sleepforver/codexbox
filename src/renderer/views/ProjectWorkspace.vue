@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { FolderOpen, Plus, Save, Search, Trash2 } from 'lucide-vue-next'
+import { Download, FolderOpen, Plus, Save, Search, Trash2, Upload } from 'lucide-vue-next'
 import type { WorkspaceProject } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { safeLoad } from '../safeLoad'
@@ -130,6 +130,59 @@ async function markOpened(project: WorkspaceProject): Promise<void> {
   }
 }
 
+async function exportProjectPackage(): Promise<void> {
+  if (!selectedProject.value) return
+  try {
+    const result = await devtoolsApi.settings.exportProjectPackage(selectedProject.value.id)
+    if (!result) return
+    status.value = result.message
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    handleError(error, '导出项目数据包失败')
+  }
+}
+
+async function exportWorkspaceProjects(): Promise<void> {
+  try {
+    const result = await devtoolsApi.settings.exportWorkspaceProjects()
+    if (!result) return
+    status.value = result.message
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    handleError(error, '导出项目工作区失败')
+  }
+}
+
+async function importWorkspaceProjects(): Promise<void> {
+  if (!window.confirm('导入项目列表会按项目 ID 覆盖同名记录，确认继续？')) return
+  try {
+    const result = await devtoolsApi.settings.importWorkspaceProjects()
+    if (!result) return
+    await loadProjects()
+    status.value = result.message
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    handleError(error, '导入项目工作区失败')
+  }
+}
+
+async function importProjectPackage(): Promise<void> {
+  if (!window.confirm('导入项目数据包会写入项目、AI 历史、API 请求和地理体检历史，确认继续？')) return
+  try {
+    const result = await devtoolsApi.settings.importProjectPackage()
+    if (!result) return
+    await loadProjects()
+    status.value = result.message
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    handleError(error, '导入项目数据包失败')
+  }
+}
+
 function handleError(error: unknown, fallback: string): void {
   status.value = error instanceof Error ? error.message : fallback
   statusType.value = 'error'
@@ -157,6 +210,14 @@ onMounted(() => {
           <Save :size="16" />
           保存
         </button>
+        <button class="button secondary" type="button" :disabled="!selectedProject" @click="exportProjectPackage">
+          <Download :size="16" />
+          导出项目包
+        </button>
+        <button class="button secondary" type="button" @click="importProjectPackage">
+          <Upload :size="16" />
+          导入项目包
+        </button>
       </div>
     </header>
 
@@ -167,6 +228,10 @@ onMounted(() => {
             <Search :size="16" />
             <strong>项目列表</strong>
             <span class="badge">{{ projects.length }}</span>
+          </div>
+          <div class="toolbar">
+            <button class="button secondary compact-button" type="button" @click="exportWorkspaceProjects">导出列表</button>
+            <button class="button secondary compact-button" type="button" @click="importWorkspaceProjects">导入列表</button>
           </div>
           <input v-model="keyword" class="input" placeholder="搜索名称、路径、标签" />
           <div class="history-list project-list">
@@ -227,6 +292,10 @@ onMounted(() => {
             </button>
             <button class="button secondary" type="button" :disabled="!selectedProject" @click="selectedProject && markOpened(selectedProject)">
               标记最近使用
+            </button>
+            <button class="button secondary" type="button" :disabled="!selectedProject" @click="exportProjectPackage">
+              <Download :size="16" />
+              导出项目包
             </button>
             <button class="button danger" type="button" :disabled="!selectedProject" @click="deleteProject">
               <Trash2 :size="16" />
