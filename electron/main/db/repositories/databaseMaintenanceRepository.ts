@@ -49,6 +49,7 @@ export async function cleanupDatabaseInDb(request: DatabaseMaintenanceCleanupReq
     if (request.aiHistory) run(db, 'DELETE FROM ai_history')
     if (request.apiHistory) run(db, 'DELETE FROM api_history')
     if (request.apiSavedRequests) run(db, 'DELETE FROM api_saved_requests')
+    if (request.geoAnalysisHistory) run(db, 'DELETE FROM geo_analysis_history')
     if (request.customPromptTemplates) run(db, 'DELETE FROM ai_prompt_templates WHERE is_builtin = 0')
   })
   persist(db)

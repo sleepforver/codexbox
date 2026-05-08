@@ -122,7 +122,28 @@ export function migrateSchema(db: Database): void {
     setMeta(db, 'schema_version', '3')
   }
 
-  if (currentSchemaVersion > 3) setMeta(db, 'schema_version', String(currentSchemaVersion))
+  const versionAfterProjectLinks = Number(getMeta(db, 'schema_version') || 3)
+
+  if (versionAfterProjectLinks < 4) {
+    run(
+      db,
+      `CREATE TABLE IF NOT EXISTS geo_analysis_history (
+        id TEXT PRIMARY KEY,
+        project_id TEXT,
+        title TEXT NOT NULL,
+        source TEXT NOT NULL,
+        required_properties TEXT NOT NULL,
+        result TEXT NOT NULL,
+        feature_count INTEGER NOT NULL,
+        issue_count INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      )`
+    )
+    run(db, 'CREATE INDEX IF NOT EXISTS idx_geo_analysis_project_created ON geo_analysis_history (project_id, created_at DESC)')
+    setMeta(db, 'schema_version', '4')
+  }
+
+  if (currentSchemaVersion > 4) setMeta(db, 'schema_version', String(currentSchemaVersion))
 }
 
 function columnExists(db: Database, table: string, column: string): boolean {

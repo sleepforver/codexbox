@@ -28,6 +28,7 @@ import {
   getApiToolStateFromDb,
   getDatabaseInfoFromDb,
   getSetting,
+  importAiHistoryToDb,
   listWorkspaceProjectsFromDb,
   markWorkspaceProjectOpenedInDb,
   resetBuiltinPromptTemplatesInDb,
@@ -128,6 +129,10 @@ export function getAiHistory(taskType?: AiTaskType, projectId?: string): Promise
 
 export function saveAiHistory(request: AiHistorySaveRequest): Promise<AiHistoryItem[]> {
   return saveAiHistoryToDb(request)
+}
+
+export function importAiHistory(item: AiHistorySaveRequest & { id?: string; createdAt?: string }, projectId?: string): Promise<void> {
+  return importAiHistoryToDb(item, projectId)
 }
 
 export function deleteAiHistory(id: string, taskType?: AiTaskType): Promise<AiHistoryItem[]> {

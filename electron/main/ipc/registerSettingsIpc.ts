@@ -1,6 +1,13 @@
 import { dialog, ipcMain } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
-import type { AiHistoryItem, AiPromptTemplate, ApiSavedRequest, DataTransferResponse } from '../../../src/shared/ipc.js'
+import type {
+  AiHistoryItem,
+  AiPromptTemplate,
+  ApiSavedRequest,
+  DataTransferResponse,
+  GeoAnalyzeHistoryItem,
+  ProjectDataPackage
+} from '../../../src/shared/ipc.js'
 import {
   backupDatabase,
   cleanupDatabase,
@@ -8,17 +15,23 @@ import {
   getAiPromptTemplates,
   getApiSavedRequests,
   getDatabaseInfo,
+  importAiHistory,
+  listWorkspaceProjects,
   readAppSettings,
   restoreDatabase,
   saveAiPromptTemplate,
   saveApiSavedRequest,
+  saveWorkspaceProject,
   updateAppSettings
 } from '../services/settings.js'
+import { getGeoAnalysisHistory, importGeoAnalysisHistory } from '../services/geo.js'
 import {
   aiPromptTemplateSchema,
   apiSavedRequestInputSchema,
   formatValidationError,
-  importEnvelopeSchema
+  importEnvelopeSchema,
+  projectPackageSchema,
+  workspaceProjectSchema
 } from '../validation/schemas.js'
 
 export function registerSettingsIpc(): void {
@@ -36,6 +49,10 @@ export function registerSettingsIpc(): void {
   ipcMain.handle('settings:importPromptTemplates', () => importPromptTemplates())
   ipcMain.handle('settings:exportApiRequests', () => exportApiRequests())
   ipcMain.handle('settings:importApiRequests', () => importApiRequests())
+  ipcMain.handle('settings:exportWorkspaceProjects', () => exportWorkspaceProjects())
+  ipcMain.handle('settings:importWorkspaceProjects', () => importWorkspaceProjects())
+  ipcMain.handle('settings:exportProjectPackage', (_event, projectId) => exportProjectPackage(projectId))
+  ipcMain.handle('settings:importProjectPackage', () => importProjectPackage())
   ipcMain.handle('settings:selectDirectory', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return result.canceled ? null : result.filePaths[0]
@@ -70,6 +87,10 @@ function parseImportItems(path: string, expectedType: string): unknown[] {
   } catch (error) {
     throw new Error(`导入文件格式无效：${formatValidationError(error)}`)
   }
+}
+
+function assertImportItemsNotEmpty(items: unknown[], label: string): void {
+  if (!items.length) throw new Error(`${label}导入文件没有可导入的数据`)
 }
 
 function formatAiHistoryMarkdown(items: AiHistoryItem[]): string {
@@ -107,6 +128,7 @@ async function importPromptTemplates(): Promise<DataTransferResponse | null> {
   const path = await chooseOpenPath([{ name: 'JSON', extensions: ['json'] }])
   if (!path) return null
   const items = parseImportItems(path, 'prompt-templates').map((item) => aiPromptTemplateSchema.parse(item))
+  assertImportItemsNotEmpty(items, 'Prompt 模板')
 
   for (const item of items) {
     await saveAiPromptTemplate({
@@ -128,10 +150,38 @@ async function exportApiRequests(): Promise<DataTransferResponse | null> {
   return { ok: true, message: `API 请求集合已导出：${path}`, count: items.length }
 }
 
+async function exportWorkspaceProjects(): Promise<DataTransferResponse | null> {
+  const items = await listWorkspaceProjects()
+  const path = await chooseSavePath('workspace-projects.json', [{ name: 'JSON', extensions: ['json'] }])
+  if (!path) return null
+  writeFileSync(path, exportEnvelope('workspace-projects', items), 'utf8')
+  return { ok: true, message: `项目工作区已导出：${path}`, count: items.length }
+}
+
+async function importWorkspaceProjects(): Promise<DataTransferResponse | null> {
+  const path = await chooseOpenPath([{ name: 'JSON', extensions: ['json'] }])
+  if (!path) return null
+  const items = parseImportItems(path, 'workspace-projects').map((item) => workspaceProjectSchema.parse(item))
+  assertImportItemsNotEmpty(items, '项目工作区')
+
+  for (const item of items) {
+    await saveWorkspaceProject({
+      id: item.id,
+      name: item.name,
+      path: item.path,
+      description: item.description,
+      tags: item.tags
+    })
+  }
+
+  return { ok: true, message: `项目工作区已导入：${items.length} 个`, count: items.length }
+}
+
 async function importApiRequests(): Promise<DataTransferResponse | null> {
   const path = await chooseOpenPath([{ name: 'JSON', extensions: ['json'] }])
   if (!path) return null
   const items = parseImportItems(path, 'api-requests').map((item) => apiSavedRequestInputSchema.parse(item))
+  assertImportItemsNotEmpty(items, 'API 请求集合')
 
   for (const item of items) {
     await saveApiSavedRequest({
@@ -139,9 +189,83 @@ async function importApiRequests(): Promise<DataTransferResponse | null> {
       method: item.method,
       url: item.url,
       headers: item.headers,
-      body: item.body
+      body: item.body,
+      projectId: item.projectId
     })
   }
 
   return { ok: true, message: `API 请求集合已导入：${items.length} 条`, count: items.length }
+}
+
+async function exportProjectPackage(projectId: string): Promise<DataTransferResponse | null> {
+  const project = (await listWorkspaceProjects()).find((item) => item.id === projectId)
+  if (!project) throw new Error('项目工作区不存在')
+
+  const [aiHistory, apiRequests, geoAnalysisHistory] = await Promise.all([
+    getAiHistory(undefined, projectId),
+    getApiSavedRequests(projectId),
+    getGeoAnalysisHistory(projectId)
+  ])
+  const packageData: ProjectDataPackage = {
+    project,
+    aiHistory,
+    apiRequests,
+    geoAnalysisHistory,
+    exportedAt: new Date().toISOString()
+  }
+  const safeName = project.name.replace(/[\\/:*?"<>|]/g, '-').slice(0, 48) || 'project'
+  const path = await chooseSavePath(`${safeName}-project-package.json`, [{ name: 'JSON', extensions: ['json'] }])
+  if (!path) return null
+
+  writeFileSync(path, exportEnvelope('project-package', [packageData]), 'utf8')
+  return {
+    ok: true,
+    message: `项目数据包已导出：${path}`,
+    count: aiHistory.length + apiRequests.length + geoAnalysisHistory.length
+  }
+}
+
+async function importProjectPackage(): Promise<DataTransferResponse | null> {
+  const path = await chooseOpenPath([{ name: 'JSON', extensions: ['json'] }])
+  if (!path) return null
+  const packages = parseImportItems(path, 'project-package').map((item) => projectPackageSchema.parse(item))
+  assertImportItemsNotEmpty(packages, '项目数据包')
+  let importedCount = 0
+
+  for (const packageData of packages) {
+    const project = packageData.project
+    await saveWorkspaceProject({
+      id: project.id,
+      name: project.name,
+      path: project.path,
+      description: project.description,
+      tags: project.tags
+    })
+    importedCount += 1
+
+    for (const item of packageData.aiHistory) {
+      await importAiHistory({ ...item, projectId: project.id }, project.id)
+      importedCount += 1
+    }
+
+    for (const item of packageData.apiRequests) {
+      await saveApiSavedRequest({
+        id: item.id,
+        name: item.name,
+        method: item.method,
+        url: item.url,
+        headers: item.headers,
+        body: item.body,
+        projectId: project.id
+      })
+      importedCount += 1
+    }
+
+    for (const item of packageData.geoAnalysisHistory as GeoAnalyzeHistoryItem[]) {
+      await importGeoAnalysisHistory({ ...item, projectId: project.id }, project.id)
+      importedCount += 1
+    }
+  }
+
+  return { ok: true, message: `项目数据包已导入：${packages.length} 个项目`, count: importedCount }
 }

@@ -68,6 +68,33 @@ export async function saveAiHistoryToDb(request: AiHistorySaveRequest): Promise<
   return getAiHistoryFromDb(parsed.taskType, parsed.projectId)
 }
 
+export async function importAiHistoryToDb(
+  item: AiHistorySaveRequest & { id?: string; createdAt?: string },
+  projectId?: string
+): Promise<void> {
+  const parsed = aiHistorySaveSchema.parse({
+    taskType: item.taskType,
+    title: item.title,
+    prompt: item.prompt,
+    output: item.output,
+    model: item.model,
+    projectId: projectId ?? item.projectId
+  })
+  const db = await getDatabase()
+  const id = item.id || randomUUID()
+  const createdAt = item.createdAt || new Date().toISOString()
+  const title = parsed.title.trim() || parsed.prompt.trim().split(/\r?\n/)[0]?.slice(0, 60) || '未命名 AI 记录'
+
+  run(
+    db,
+    `INSERT OR REPLACE INTO ai_history
+      (id, task_type, title, prompt, output, model, project_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, parsed.taskType, title, parsed.prompt, parsed.output, parsed.model, parsed.projectId ?? null, createdAt]
+  )
+  persist(db)
+}
+
 export async function deleteAiHistoryFromDb(id: string, taskType?: AiTaskType): Promise<AiHistoryItem[]> {
   const db = await getDatabase()
   run(db, 'DELETE FROM ai_history WHERE id = ?', [id])

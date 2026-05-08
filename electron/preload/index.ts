@@ -29,6 +29,7 @@ import type {
   GitAction,
   GitActionResponse,
   GitCommitResponse,
+  GeoAnalyzeHistoryItem,
   GeoAnalyzeRequest,
   GeoAnalyzeResponse,
   JsonQueryRequest,
@@ -120,7 +121,14 @@ const devtoolsApi: DevtoolsApi = {
     exportPromptTemplates: () => ipcRenderer.invoke('settings:exportPromptTemplates') as Promise<DataTransferResponse | null>,
     importPromptTemplates: () => ipcRenderer.invoke('settings:importPromptTemplates') as Promise<DataTransferResponse | null>,
     exportApiRequests: () => ipcRenderer.invoke('settings:exportApiRequests') as Promise<DataTransferResponse | null>,
-    importApiRequests: () => ipcRenderer.invoke('settings:importApiRequests') as Promise<DataTransferResponse | null>
+    importApiRequests: () => ipcRenderer.invoke('settings:importApiRequests') as Promise<DataTransferResponse | null>,
+    exportWorkspaceProjects: () =>
+      ipcRenderer.invoke('settings:exportWorkspaceProjects') as Promise<DataTransferResponse | null>,
+    importWorkspaceProjects: () =>
+      ipcRenderer.invoke('settings:importWorkspaceProjects') as Promise<DataTransferResponse | null>,
+    exportProjectPackage: (projectId: string) =>
+      ipcRenderer.invoke('settings:exportProjectPackage', projectId) as Promise<DataTransferResponse | null>,
+    importProjectPackage: () => ipcRenderer.invoke('settings:importProjectPackage') as Promise<DataTransferResponse | null>
   },
   projects: {
     list: () => ipcRenderer.invoke('projects:list') as Promise<WorkspaceProject[]>,
@@ -129,7 +137,10 @@ const devtoolsApi: DevtoolsApi = {
     markOpened: (id: string) => ipcRenderer.invoke('projects:markOpened', id) as Promise<WorkspaceProject[]>
   },
   geo: {
-    analyze: (request: GeoAnalyzeRequest) => ipcRenderer.invoke('geo:analyze', request) as Promise<GeoAnalyzeResponse>
+    analyze: (request: GeoAnalyzeRequest) => ipcRenderer.invoke('geo:analyze', request) as Promise<GeoAnalyzeResponse>,
+    getHistory: (projectId?: string) => ipcRenderer.invoke('geo:getHistory', projectId) as Promise<GeoAnalyzeHistoryItem[]>,
+    deleteHistory: (id: string) => ipcRenderer.invoke('geo:deleteHistory', id) as Promise<GeoAnalyzeHistoryItem[]>,
+    clearHistory: (projectId?: string) => ipcRenderer.invoke('geo:clearHistory', projectId) as Promise<GeoAnalyzeHistoryItem[]>
   }
 }
 

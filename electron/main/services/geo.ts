@@ -1,4 +1,18 @@
-import type { GeoAnalyzeRequest, GeoAnalyzeResponse, GeoBounds, GeoValidationIssue } from '../../../src/shared/ipc.js'
+import type {
+  GeoAnalyzeHistoryItem,
+  GeoAnalyzeRequest,
+  GeoAnalyzeResponse,
+  GeoBounds,
+  GeoValidationIssue
+} from '../../../src/shared/ipc.js'
+import {
+  clearGeoAnalysisHistoryFromDb,
+  deleteGeoAnalysisHistoryFromDb,
+  getGeoAnalysisHistoryFromDb,
+  importGeoAnalysisHistoryToDb,
+  saveGeoAnalysisHistoryToDb
+} from '../db/repositories/geoRepository.js'
+import { geoAnalyzeRequestSchema } from '../validation/schemas.js'
 
 interface GeoFeature {
   type: 'Feature'
@@ -45,11 +59,27 @@ function updateBounds(bounds: GeoBounds | null, lng: number, lat: number): GeoBo
   }
 }
 
-export function handleGeoAnalyze(request: GeoAnalyzeRequest): GeoAnalyzeResponse {
+const maxGeoJsonSourceBytes = 5 * 1024 * 1024
+const maxGeoJsonFeatures = 10000
+const maxRequiredProperties = 50
+
+export async function handleGeoAnalyze(request: GeoAnalyzeRequest): Promise<GeoAnalyzeResponse> {
+  const parsedRequest = geoAnalyzeRequestSchema.parse(request)
+  const sourceSize = Buffer.byteLength(parsedRequest.source, 'utf8')
+  if (!parsedRequest.source.trim()) {
+    return { ok: false, error: 'GeoJSON 输入不能为空' }
+  }
+  if (sourceSize > maxGeoJsonSourceBytes) {
+    return { ok: false, error: 'GeoJSON 输入超过 5MB，请拆分后再分析' }
+  }
+  if (parsedRequest.requiredProperties.length > maxRequiredProperties) {
+    return { ok: false, error: `必填属性最多支持 ${maxRequiredProperties} 个` }
+  }
+
   let parsed: unknown
 
   try {
-    parsed = JSON.parse(request.source)
+    parsed = JSON.parse(parsedRequest.source)
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'GeoJSON 解析失败' }
   }
@@ -57,10 +87,16 @@ export function handleGeoAnalyze(request: GeoAnalyzeRequest): GeoAnalyzeResponse
   if (!isFeatureCollection(parsed)) {
     return { ok: false, error: '仅支持 GeoJSON FeatureCollection' }
   }
+  if (parsed.features.length > maxGeoJsonFeatures) {
+    return { ok: false, error: `GeoJSON 要素超过 ${maxGeoJsonFeatures} 个，请拆分后再分析` }
+  }
 
   const typeCounts = new Map<string, number>()
   const issues: GeoValidationIssue[] = []
   let bounds: GeoBounds | null = null
+  const requiredProperties = Array.from(
+    new Set(parsedRequest.requiredProperties.map((item) => item.trim()).filter(Boolean))
+  )
 
   parsed.features.forEach((feature, index) => {
     const path = `features[${index}]`
@@ -75,7 +111,7 @@ export function handleGeoAnalyze(request: GeoAnalyzeRequest): GeoAnalyzeResponse
       issues.push({ level: 'warning', path, message: '缺少 properties' })
     }
 
-    for (const property of request.requiredProperties.map((item) => item.trim()).filter(Boolean)) {
+    for (const property of requiredProperties) {
       if (!feature.properties || feature.properties[property] === undefined || feature.properties[property] === '') {
         issues.push({ level: 'warning', path: `${path}.properties.${property}`, message: `缺少必填属性 ${property}` })
       }
@@ -96,11 +132,30 @@ export function handleGeoAnalyze(request: GeoAnalyzeRequest): GeoAnalyzeResponse
     }
   })
 
-  return {
+  const result: Extract<GeoAnalyzeResponse, { ok: true }> = {
     ok: true,
     featureCount: parsed.features.length,
     geometryTypes: [...typeCounts.entries()].map(([type, count]) => ({ type, count })),
     bounds,
     issues
   }
+
+  const historyItem = await saveGeoAnalysisHistoryToDb(parsedRequest, result)
+  return { ...result, historyId: historyItem.id }
+}
+
+export function getGeoAnalysisHistory(projectId?: string): Promise<GeoAnalyzeHistoryItem[]> {
+  return getGeoAnalysisHistoryFromDb(projectId)
+}
+
+export function deleteGeoAnalysisHistory(id: string): Promise<GeoAnalyzeHistoryItem[]> {
+  return deleteGeoAnalysisHistoryFromDb(id)
+}
+
+export function clearGeoAnalysisHistory(projectId?: string): Promise<GeoAnalyzeHistoryItem[]> {
+  return clearGeoAnalysisHistoryFromDb(projectId)
+}
+
+export function importGeoAnalysisHistory(item: GeoAnalyzeHistoryItem, projectId?: string): Promise<void> {
+  return importGeoAnalysisHistoryToDb(item, projectId)
 }

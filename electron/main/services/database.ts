@@ -10,6 +10,7 @@ export {
 export {
   getAiHistoryFromDb,
   saveAiHistoryToDb,
+  importAiHistoryToDb,
   deleteAiHistoryFromDb,
   clearAiHistoryFromDb
 } from '../db/repositories/aiHistoryRepository.js'

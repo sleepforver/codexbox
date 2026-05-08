@@ -292,6 +292,7 @@ export interface DatabaseMaintenanceCleanupRequest {
   aiHistory?: boolean
   apiHistory?: boolean
   apiSavedRequests?: boolean
+  geoAnalysisHistory?: boolean
   customPromptTemplates?: boolean
 }
 
@@ -305,6 +306,14 @@ export interface DataTransferResponse {
   ok: true
   message: string
   count: number
+}
+
+export interface ProjectDataPackage {
+  project: WorkspaceProject
+  aiHistory: AiHistoryItem[]
+  apiRequests: ApiSavedRequest[]
+  geoAnalysisHistory: GeoAnalyzeHistoryItem[]
+  exportedAt: string
 }
 
 export interface GeoFeatureTypeCount {
@@ -328,17 +337,32 @@ export interface GeoValidationIssue {
 export interface GeoAnalyzeRequest {
   source: string
   requiredProperties: string[]
+  projectId?: string
+  title?: string
 }
 
 export type GeoAnalyzeResponse =
   | {
       ok: true
+      historyId?: string
       featureCount: number
       geometryTypes: GeoFeatureTypeCount[]
       bounds: GeoBounds | null
       issues: GeoValidationIssue[]
     }
   | { ok: false; error: string }
+
+export interface GeoAnalyzeHistoryItem {
+  id: string
+  projectId?: string
+  title: string
+  source: string
+  requiredProperties: string[]
+  result: Extract<GeoAnalyzeResponse, { ok: true }>
+  featureCount: number
+  issueCount: number
+  createdAt: string
+}
 
 export interface DevtoolsApi {
   json: {
@@ -389,6 +413,10 @@ export interface DevtoolsApi {
     importPromptTemplates(): Promise<DataTransferResponse | null>
     exportApiRequests(): Promise<DataTransferResponse | null>
     importApiRequests(): Promise<DataTransferResponse | null>
+    exportWorkspaceProjects(): Promise<DataTransferResponse | null>
+    importWorkspaceProjects(): Promise<DataTransferResponse | null>
+    exportProjectPackage(projectId: string): Promise<DataTransferResponse | null>
+    importProjectPackage(): Promise<DataTransferResponse | null>
   }
   projects: {
     list(): Promise<WorkspaceProject[]>
@@ -398,5 +426,8 @@ export interface DevtoolsApi {
   }
   geo: {
     analyze(request: GeoAnalyzeRequest): Promise<GeoAnalyzeResponse>
+    getHistory(projectId?: string): Promise<GeoAnalyzeHistoryItem[]>
+    deleteHistory(id: string): Promise<GeoAnalyzeHistoryItem[]>
+    clearHistory(projectId?: string): Promise<GeoAnalyzeHistoryItem[]>
   }
 }
