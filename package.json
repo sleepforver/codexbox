@@ -2,6 +2,7 @@
   "name": "devtools-codex",
   "version": "0.1.0",
   "description": "AI development toolbox built with Electron, Vue, and Codex workflows.",
+  "author": "linweiping <2076223883@qq.com>",
   "main": "out/main/index.js",
   "private": true,
   "scripts": {
@@ -57,7 +58,8 @@
     "openai": "4.104.0",
     "sql.js": "^1.12.0",
     "vue": "3.5.13",
-    "vue-router": "4.5.0"
+    "vue-router": "4.5.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",

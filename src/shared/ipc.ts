@@ -262,6 +262,7 @@ export interface DatabaseInfo {
   exists: boolean
   sizeBytes: number
   updatedAt: string | null
+  schemaVersion: number
   tables: DatabaseTableStat[]
 }
 
@@ -347,6 +348,7 @@ export interface DevtoolsApi {
     getHistory(taskType?: AiTaskType): Promise<AiHistoryItem[]>
     saveHistory(request: AiHistorySaveRequest): Promise<AiHistoryItem[]>
     deleteHistory(id: string, taskType?: AiTaskType): Promise<AiHistoryItem[]>
+    clearHistory(taskType?: AiTaskType): Promise<AiHistoryItem[]>
     getPromptTemplates(taskType?: AiTaskType): Promise<AiPromptTemplate[]>
     savePromptTemplate(request: AiPromptTemplateSaveRequest): Promise<AiPromptTemplate[]>
     deletePromptTemplate(id: string, taskType?: AiTaskType): Promise<AiPromptTemplate[]>

@@ -14,6 +14,7 @@ import type {
 } from '../../../src/shared/ipc.js'
 import {
   backupDatabaseToFile,
+  clearAiHistoryFromDb,
   cleanupDatabaseInDb,
   deleteAiHistoryFromDb,
   deleteAiPromptTemplateFromDb,
@@ -125,6 +126,10 @@ export function saveAiHistory(request: AiHistorySaveRequest): Promise<AiHistoryI
 
 export function deleteAiHistory(id: string, taskType?: AiTaskType): Promise<AiHistoryItem[]> {
   return deleteAiHistoryFromDb(id, taskType)
+}
+
+export function clearAiHistory(taskType?: AiTaskType): Promise<AiHistoryItem[]> {
+  return clearAiHistoryFromDb(taskType)
 }
 
 export function getAiPromptTemplates(taskType?: AiTaskType): Promise<AiPromptTemplate[]> {
