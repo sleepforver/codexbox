@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { Bot, Braces, GitBranch, Hammer, Map, Send, Settings, Sparkles } from 'lucide-vue-next'
+import { Bot, Braces, GitBranch, Hammer, History, Map, Send, Settings, Sparkles } from 'lucide-vue-next'
 import { routes } from './routes'
 import { toasts } from './toast'
 
@@ -13,6 +13,7 @@ const navItems = [
   { path: '/geo', label: '电力地理', description: 'GeoJSON体检与台账校验', icon: Map },
   { path: '/ai-explain', label: 'AI解释代码', description: '代码理解与风险分析', icon: Bot },
   { path: '/ai-generate', label: 'AI生成代码', description: '需求转实现草稿', icon: Sparkles },
+  { path: '/ai-history', label: 'AI历史中心', description: '检索、复用、导出记录', icon: History },
   { path: '/settings', label: '设置', description: '模型、目录、超时', icon: Settings }
 ]
 

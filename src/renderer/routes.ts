@@ -5,6 +5,7 @@ import GitAssistant from './views/GitAssistant.vue'
 import GeoPowerTool from './views/GeoPowerTool.vue'
 import AiExplain from './views/AiExplain.vue'
 import AiGenerate from './views/AiGenerate.vue'
+import AiHistoryCenter from './views/AiHistoryCenter.vue'
 import SettingsView from './views/SettingsView.vue'
 
 export const routes: RouteRecordRaw[] = [
@@ -15,5 +16,6 @@ export const routes: RouteRecordRaw[] = [
   { path: '/geo', name: 'geo', component: GeoPowerTool, meta: { label: '电力地理' } },
   { path: '/ai-explain', name: 'ai-explain', component: AiExplain, meta: { label: 'AI解释代码' } },
   { path: '/ai-generate', name: 'ai-generate', component: AiGenerate, meta: { label: 'AI生成代码' } },
+  { path: '/ai-history', name: 'ai-history', component: AiHistoryCenter, meta: { label: 'AI历史中心' } },
   { path: '/settings', name: 'settings', component: SettingsView, meta: { label: '设置' } }
 ]
