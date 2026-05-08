@@ -92,6 +92,7 @@ const devtoolsApi: DevtoolsApi = {
       ipcRenderer.invoke('ai:saveHistory', request) as Promise<AiHistoryItem[]>,
     deleteHistory: (id: string, taskType?: AiTaskType) =>
       ipcRenderer.invoke('ai:deleteHistory', id, taskType) as Promise<AiHistoryItem[]>,
+    clearHistory: (taskType?: AiTaskType) => ipcRenderer.invoke('ai:clearHistory', taskType) as Promise<AiHistoryItem[]>,
     getPromptTemplates: (taskType?: AiTaskType) =>
       ipcRenderer.invoke('ai:getPromptTemplates', taskType) as Promise<AiPromptTemplate[]>,
     savePromptTemplate: (request: AiPromptTemplateSaveRequest) =>
