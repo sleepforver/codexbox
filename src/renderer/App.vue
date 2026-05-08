@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { Bot, Braces, GitBranch, Hammer, History, Map, Send, Settings, Sparkles } from 'lucide-vue-next'
+import { Bot, Braces, FolderKanban, GitBranch, Hammer, History, Map, Send, Settings, Sparkles } from 'lucide-vue-next'
 import { routes } from './routes'
 import { toasts } from './toast'
 
 const route = useRoute()
 const navItems = [
+  { path: '/projects', label: '项目工作区', description: '项目目录与标签', icon: FolderKanban },
   { path: '/json', label: 'JSON工具', description: '格式化、压缩、校验', icon: Braces },
   { path: '/api', label: 'API测试', description: '请求调试与响应检查', icon: Send },
   { path: '/git', label: 'Git助手', description: '状态、日志、差异', icon: GitBranch },

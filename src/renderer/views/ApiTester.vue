@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { Bot, Clock3, Copy, Eye, History, Plus, Save, Send, Square, Trash2 } from 'lucide-vue-next'
-import type { AiHistoryItem, AiPromptTemplate, AiTaskType, ApiHistoryItem, ApiMethod, ApiSavedRequest, ApiSendResponse, EnvPair, HeaderPair } from '../../shared/ipc'
+import type { AiHistoryItem, AiPromptTemplate, AiTaskType, ApiHistoryItem, ApiMethod, ApiSavedRequest, ApiSendResponse, EnvPair, HeaderPair, WorkspaceProject } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { isApiSendError } from '../ipcGuards'
 import { renderMarkdown } from '../markdown'
@@ -31,6 +31,8 @@ const aiHistory = ref<AiHistoryItem[]>([])
 const aiHistorySearch = ref('')
 const selectedAiHistoryItem = ref<AiHistoryItem | null>(null)
 const savedRequests = ref<ApiSavedRequest[]>([])
+const projects = ref<WorkspaceProject[]>([])
+const selectedProjectId = ref('')
 const requestName = ref('')
 const timeoutMs = ref(30000)
 const aiOutput = ref('')
@@ -59,15 +61,17 @@ const filteredAiHistory = computed(() => {
 })
 
 async function loadState(): Promise<void> {
-  const [state, settings, requests, promptTemplates, apiAiHistory] = await Promise.all([
+  const [state, settings, projectItems, requests, promptTemplates, apiAiHistory] = await Promise.all([
     devtoolsApi.api.getState(),
     devtoolsApi.settings.get(),
-    devtoolsApi.api.getSavedRequests(),
+    devtoolsApi.projects.list(),
+    devtoolsApi.api.getSavedRequests(selectedProjectId.value || undefined),
     devtoolsApi.ai.getPromptTemplates(aiTaskType),
-    devtoolsApi.ai.getHistory(aiTaskType)
+    devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value || undefined)
   ])
   envVars.value = state.envVars.length ? state.envVars : [{ key: 'baseUrl', value: 'https://httpbin.org' }]
   history.value = state.history
+  projects.value = projectItems
   savedRequests.value = requests
   timeoutMs.value = settings.apiTimeoutMs
   templates.value = promptTemplates
@@ -192,7 +196,8 @@ async function saveCurrentRequest(): Promise<void> {
     method: method.value,
     url: url.value,
     headers: headers.value,
-    body: body.value
+    body: body.value,
+    projectId: selectedProjectId.value || undefined
   })
   status.value = '请求已保存'
   statusType.value = 'success'
@@ -200,7 +205,8 @@ async function saveCurrentRequest(): Promise<void> {
 }
 
 async function deleteSavedRequest(id: string): Promise<void> {
-  savedRequests.value = await devtoolsApi.api.deleteRequest(id)
+  await devtoolsApi.api.deleteRequest(id)
+  savedRequests.value = await devtoolsApi.api.getSavedRequests(selectedProjectId.value || undefined)
   status.value = '请求已删除'
   statusType.value = 'success'
   showToast(status.value, 'success')
@@ -294,7 +300,8 @@ async function saveAiHistory(promptText: string, model: string): Promise<void> {
     title: `${method.value} ${url.value}`.slice(0, 60),
     prompt: promptText,
     output: aiOutput.value,
-    model
+    model,
+    projectId: selectedProjectId.value || undefined
   })
 }
 
@@ -322,14 +329,15 @@ async function copyHistoryOutput(): Promise<void> {
 }
 
 async function deleteAiHistoryItem(id: string): Promise<void> {
-  aiHistory.value = await devtoolsApi.ai.deleteHistory(id, aiTaskType)
+  await devtoolsApi.ai.deleteHistory(id, aiTaskType)
+  aiHistory.value = await devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value || undefined)
   showToast('AI 历史已删除', 'success')
 }
 
 async function clearAiHistory(): Promise<void> {
   if (!aiHistory.value.length) return
   if (!window.confirm('确认清空 API AI 分析历史？')) return
-  aiHistory.value = await devtoolsApi.ai.clearHistory(aiTaskType)
+  aiHistory.value = await devtoolsApi.ai.clearHistory(aiTaskType, selectedProjectId.value || undefined)
   showToast('AI 历史已清空', 'success')
 }
 
@@ -383,6 +391,17 @@ watch(method, (value) => {
   if (['GET', 'HEAD'].includes(value)) body.value = ''
 })
 
+watch(selectedProjectId, () => {
+  void safeLoad('切换项目数据', async () => {
+    const [requests, historyItems] = await Promise.all([
+      devtoolsApi.api.getSavedRequests(selectedProjectId.value || undefined),
+      devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value || undefined)
+    ])
+    savedRequests.value = requests
+    aiHistory.value = historyItems
+  })
+})
+
 onMounted(() => {
   void safeLoad('读取 API 测试器状态', loadState)
 })
@@ -396,6 +415,10 @@ onMounted(() => {
         <p>支持请求集合、本地变量、请求历史、cURL 复制和 AI 错误分析。</p>
       </div>
       <div class="toolbar">
+        <select v-model="selectedProjectId" class="select select-compact" aria-label="项目工作区">
+          <option value="">全部项目</option>
+          <option v-for="project in projects" :key="project.id" :value="project.id">{{ project.name }}</option>
+        </select>
         <button class="button secondary" type="button" @click="copyCurl">
           <Copy :size="16" />
           cURL

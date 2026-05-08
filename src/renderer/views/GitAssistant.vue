@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Bot, Clipboard, Eye, FileDiff, GitBranch, History, ListTree, Plus, RefreshCw, RotateCcw, Square, Trash2 } from 'lucide-vue-next'
-import type { AiHistoryItem, AiPromptTemplate, AiTaskType, GitCommand, GitCommandResponse } from '../../shared/ipc'
+import type { AiHistoryItem, AiPromptTemplate, AiTaskType, GitCommand, GitCommandResponse, WorkspaceProject } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { isGitActionError, isGitCommandError, isGitCommitError } from '../ipcGuards'
 import { renderMarkdown } from '../markdown'
@@ -10,6 +10,8 @@ import { safeLoad } from '../safeLoad'
 import { showToast } from '../toast'
 
 const cwd = ref('')
+const projects = ref<WorkspaceProject[]>([])
+const selectedProjectId = ref('')
 const command = ref<Exclude<GitCommand, 'file-diff'>>('status')
 const commands: Array<{ value: Exclude<GitCommand, 'file-diff'>; label: string }> = [
   { value: 'status', label: '工作区状态' },
@@ -172,7 +174,8 @@ async function saveAiHistory(taskType: Extract<AiTaskType, 'git-summary' | 'comm
     title: taskType === 'git-summary' ? 'Git 变更说明' : 'Commit Message',
     prompt: promptText,
     output: aiOutput.value,
-    model
+    model,
+    projectId: selectedProjectId.value || undefined
   })
 }
 
@@ -200,7 +203,10 @@ async function copyHistoryOutput(): Promise<void> {
 }
 
 async function deleteAiHistoryItem(id: string): Promise<void> {
-  aiHistory.value = await devtoolsApi.ai.deleteHistory(id)
+  await devtoolsApi.ai.deleteHistory(id)
+  aiHistory.value = (await devtoolsApi.ai.getHistory(undefined, selectedProjectId.value || undefined)).filter(
+    (item) => item.taskType === 'git-summary' || item.taskType === 'commit-message'
+  )
   showToast('AI 历史已删除', 'success')
 }
 
@@ -208,8 +214,8 @@ async function clearAiHistory(): Promise<void> {
   const currentItems = aiHistory.value.filter((item) => item.taskType === gitAiTaskType.value)
   if (!currentItems.length) return
   if (!window.confirm('确认清空当前 Git AI 历史？')) return
-  await devtoolsApi.ai.clearHistory(gitAiTaskType.value)
-  aiHistory.value = (await devtoolsApi.ai.getHistory()).filter(
+  await devtoolsApi.ai.clearHistory(gitAiTaskType.value, selectedProjectId.value || undefined)
+  aiHistory.value = (await devtoolsApi.ai.getHistory(undefined, selectedProjectId.value || undefined)).filter(
     (item) => item.taskType === 'git-summary' || item.taskType === 'commit-message'
   )
   showToast('AI 历史已清空', 'success')
@@ -266,10 +272,24 @@ function isStaged(status: string): boolean {
 
 onMounted(async () => {
   await safeLoad('读取 Git 助手状态', async () => {
-    const [settings, historyItems] = await Promise.all([devtoolsApi.settings.get(), devtoolsApi.ai.getHistory(), loadTemplates()])
+    const [settings, projectItems, historyItems] = await Promise.all([
+      devtoolsApi.settings.get(),
+      devtoolsApi.projects.list(),
+      devtoolsApi.ai.getHistory(),
+      loadTemplates()
+    ])
     cwd.value = settings.defaultWorkspace
+    projects.value = projectItems
     aiHistory.value = historyItems.filter((item) => item.taskType === 'git-summary' || item.taskType === 'commit-message')
   })
+})
+
+watch(selectedProjectId, async (id) => {
+  const project = projects.value.find((item) => item.id === id)
+  if (project) cwd.value = project.path
+  aiHistory.value = (await devtoolsApi.ai.getHistory(undefined, id || undefined)).filter(
+    (item) => item.taskType === 'git-summary' || item.taskType === 'commit-message'
+  )
 })
 </script>
 
@@ -280,10 +300,16 @@ onMounted(async () => {
         <h2>Git 助手</h2>
         <p>查看仓库状态、文件 diff，并安全执行文件级暂存/取消暂存。</p>
       </div>
-      <button class="button" type="button" :disabled="loading" @click="runGit()">
-        <RefreshCw :size="16" />
-        刷新
-      </button>
+      <div class="toolbar">
+        <select v-model="selectedProjectId" class="select select-compact" aria-label="项目工作区">
+          <option value="">默认目录</option>
+          <option v-for="project in projects" :key="project.id" :value="project.id">{{ project.name }}</option>
+        </select>
+        <button class="button" type="button" :disabled="loading" @click="runGit()">
+          <RefreshCw :size="16" />
+          刷新
+        </button>
+      </div>
     </header>
 
     <div class="tool-body">

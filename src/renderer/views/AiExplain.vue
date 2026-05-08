@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { Bot, Clipboard, Eye, History, RefreshCw, Square, Trash2 } from 'lucide-vue-next'
-import type { AiConfigResponse, AiHistoryItem, AiPromptTemplate, AiTaskType } from '../../shared/ipc'
+import type { AiConfigResponse, AiHistoryItem, AiPromptTemplate, AiTaskType, WorkspaceProject } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { renderMarkdown } from '../markdown'
 import { extractPromptVariables, renderPromptTemplate } from '../promptTemplates'
@@ -16,6 +16,8 @@ const statusType = ref<'idle' | 'success' | 'error'>('idle')
 const loading = ref(false)
 const activeRequestId = ref('')
 const history = ref<AiHistoryItem[]>([])
+const projects = ref<WorkspaceProject[]>([])
+const selectedProjectId = ref('')
 const templates = ref<AiPromptTemplate[]>([])
 const selectedTemplateId = ref('')
 const templateDraft = ref('')
@@ -42,7 +44,11 @@ async function loadConfig(): Promise<void> {
 }
 
 async function loadHistory(): Promise<void> {
-  history.value = await devtoolsApi.ai.getHistory(taskType)
+  history.value = await devtoolsApi.ai.getHistory(taskType, selectedProjectId.value || undefined)
+}
+
+async function loadProjects(): Promise<void> {
+  projects.value = await devtoolsApi.projects.list()
 }
 
 async function loadTemplates(): Promise<void> {
@@ -75,7 +81,8 @@ async function saveCurrentHistory(model: string): Promise<void> {
     title: code.value.trim().split(/\r?\n/)[0]?.slice(0, 60) || '代码解释',
     prompt: code.value,
     output: output.value,
-    model
+    model,
+    projectId: selectedProjectId.value || undefined
   })
 }
 
@@ -165,20 +172,22 @@ async function rerunHistoryItem(item: AiHistoryItem): Promise<void> {
 }
 
 async function deleteHistoryItem(id: string): Promise<void> {
-  history.value = await devtoolsApi.ai.deleteHistory(id, taskType)
+  await devtoolsApi.ai.deleteHistory(id, taskType)
+  await loadHistory()
   showToast('历史记录已删除', 'success')
 }
 
 async function clearHistory(): Promise<void> {
   if (!history.value.length) return
   if (!window.confirm('确认清空代码解释历史？')) return
-  history.value = await devtoolsApi.ai.clearHistory(taskType)
+  history.value = await devtoolsApi.ai.clearHistory(taskType, selectedProjectId.value || undefined)
   showToast('历史记录已清空', 'success')
 }
 
 onMounted(async () => {
   await safeLoadAll([
     { label: '读取 AI 配置', work: loadConfig },
+    { label: '读取项目工作区', work: loadProjects },
     { label: '读取 AI 历史', work: loadHistory },
     { label: '读取 Prompt 模板', work: loadTemplates }
   ])
@@ -192,6 +201,10 @@ watch(selectedTemplateId, () => {
 watch(templateDraft, () => {
   syncTemplateVariables()
 })
+
+watch(selectedProjectId, () => {
+  void loadHistory()
+})
 </script>
 
 <template>
@@ -202,6 +215,10 @@ watch(templateDraft, () => {
         <p>从意图、流程、风险和改进建议四个角度分析代码。</p>
       </div>
       <div class="toolbar">
+        <select v-model="selectedProjectId" class="select select-compact" aria-label="项目工作区">
+          <option value="">全部项目</option>
+          <option v-for="project in projects" :key="project.id" :value="project.id">{{ project.name }}</option>
+        </select>
         <span class="pill">{{ config.model }}</span>
         <button class="button secondary" type="button" :disabled="!output" @click="copyOutput">
           <Clipboard :size="16" />

@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router'
+import ProjectWorkspace from './views/ProjectWorkspace.vue'
 import JsonTool from './views/JsonTool.vue'
 import ApiTester from './views/ApiTester.vue'
 import GitAssistant from './views/GitAssistant.vue'
@@ -9,7 +10,8 @@ import AiHistoryCenter from './views/AiHistoryCenter.vue'
 import SettingsView from './views/SettingsView.vue'
 
 export const routes: RouteRecordRaw[] = [
-  { path: '/', redirect: '/json' },
+  { path: '/', redirect: '/projects' },
+  { path: '/projects', name: 'projects', component: ProjectWorkspace, meta: { label: '项目工作区' } },
   { path: '/json', name: 'json', component: JsonTool, meta: { label: 'JSON工具' } },
   { path: '/api', name: 'api', component: ApiTester, meta: { label: 'API测试' } },
   { path: '/git', name: 'git', component: GitAssistant, meta: { label: 'Git助手' } },

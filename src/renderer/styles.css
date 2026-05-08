@@ -997,6 +997,34 @@ code {
   min-height: 0;
 }
 
+.project-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 18px;
+  min-height: 0;
+}
+
+.project-list {
+  max-height: 560px;
+  overflow: auto;
+}
+
+.project-list-item {
+  align-items: start;
+  width: 100%;
+  text-align: left;
+}
+
+.project-list-item.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.project-description {
+  min-height: 150px;
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-columns: 232px minmax(0, 1fr);
@@ -1012,6 +1040,7 @@ code {
 
   .split-grid,
   .template-manager-grid,
+  .project-workspace-grid,
   .history-detail-grid {
     grid-template-columns: minmax(0, 1fr);
   }
