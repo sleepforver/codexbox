@@ -20,6 +20,8 @@ import type {
   DatabaseInfo,
   DatabaseMaintenanceCleanupRequest,
   DatabaseMaintenanceResponse,
+  WorkspaceProject,
+  WorkspaceProjectSaveRequest,
   DataTransferResponse,
   DevtoolsApi,
   GitCommandRequest,
@@ -49,7 +51,7 @@ const devtoolsApi: DevtoolsApi = {
     send: (request: ApiSendRequest) => ipcRenderer.invoke('api:send', request) as Promise<ApiSendResponse>,
     getState: () => ipcRenderer.invoke('api:getState') as Promise<ApiToolState>,
     saveState: (state: ApiToolState) => ipcRenderer.invoke('api:saveState', state) as Promise<ApiToolState>,
-    getSavedRequests: () => ipcRenderer.invoke('api:getSavedRequests') as Promise<ApiSavedRequest[]>,
+    getSavedRequests: (projectId?: string) => ipcRenderer.invoke('api:getSavedRequests', projectId) as Promise<ApiSavedRequest[]>,
     saveRequest: (request) => ipcRenderer.invoke('api:saveRequest', request) as Promise<ApiSavedRequest[]>,
     deleteRequest: (id: string) => ipcRenderer.invoke('api:deleteRequest', id) as Promise<ApiSavedRequest[]>
   },
@@ -87,12 +89,14 @@ const devtoolsApi: DevtoolsApi = {
     },
     cancelStream: (requestId: string) => ipcRenderer.invoke('ai:cancelStream', requestId) as Promise<void>,
     testConnection: () => ipcRenderer.invoke('ai:testConnection') as Promise<AiConnectionResponse>,
-    getHistory: (taskType?: AiTaskType) => ipcRenderer.invoke('ai:getHistory', taskType) as Promise<AiHistoryItem[]>,
+    getHistory: (taskType?: AiTaskType, projectId?: string) =>
+      ipcRenderer.invoke('ai:getHistory', taskType, projectId) as Promise<AiHistoryItem[]>,
     saveHistory: (request: AiHistorySaveRequest) =>
       ipcRenderer.invoke('ai:saveHistory', request) as Promise<AiHistoryItem[]>,
     deleteHistory: (id: string, taskType?: AiTaskType) =>
       ipcRenderer.invoke('ai:deleteHistory', id, taskType) as Promise<AiHistoryItem[]>,
-    clearHistory: (taskType?: AiTaskType) => ipcRenderer.invoke('ai:clearHistory', taskType) as Promise<AiHistoryItem[]>,
+    clearHistory: (taskType?: AiTaskType, projectId?: string) =>
+      ipcRenderer.invoke('ai:clearHistory', taskType, projectId) as Promise<AiHistoryItem[]>,
     getPromptTemplates: (taskType?: AiTaskType) =>
       ipcRenderer.invoke('ai:getPromptTemplates', taskType) as Promise<AiPromptTemplate[]>,
     savePromptTemplate: (request: AiPromptTemplateSaveRequest) =>
@@ -117,6 +121,12 @@ const devtoolsApi: DevtoolsApi = {
     importPromptTemplates: () => ipcRenderer.invoke('settings:importPromptTemplates') as Promise<DataTransferResponse | null>,
     exportApiRequests: () => ipcRenderer.invoke('settings:exportApiRequests') as Promise<DataTransferResponse | null>,
     importApiRequests: () => ipcRenderer.invoke('settings:importApiRequests') as Promise<DataTransferResponse | null>
+  },
+  projects: {
+    list: () => ipcRenderer.invoke('projects:list') as Promise<WorkspaceProject[]>,
+    save: (request: WorkspaceProjectSaveRequest) => ipcRenderer.invoke('projects:save', request) as Promise<WorkspaceProject[]>,
+    delete: (id: string) => ipcRenderer.invoke('projects:delete', id) as Promise<WorkspaceProject[]>,
+    markOpened: (id: string) => ipcRenderer.invoke('projects:markOpened', id) as Promise<WorkspaceProject[]>
   },
   geo: {
     analyze: (request: GeoAnalyzeRequest) => ipcRenderer.invoke('geo:analyze', request) as Promise<GeoAnalyzeResponse>

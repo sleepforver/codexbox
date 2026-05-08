@@ -28,7 +28,8 @@ export const apiSavedRequestInputSchema = z.object({
   method: apiMethodSchema,
   url: z.string(),
   headers: z.array(headerPairSchema),
-  body: z.string()
+  body: z.string(),
+  projectId: z.string().optional()
 })
 
 export const aiHistorySaveSchema = z.object({
@@ -36,7 +37,8 @@ export const aiHistorySaveSchema = z.object({
   title: z.string(),
   prompt: z.string(),
   output: z.string(),
-  model: z.string()
+  model: z.string(),
+  projectId: z.string().optional()
 })
 
 export const aiPromptTemplateSchema = z.object({
@@ -56,6 +58,14 @@ export const aiPromptTemplateSaveSchema = z.object({
   name: z.string(),
   content: z.string(),
   variables: z.array(z.string())
+})
+
+export const workspaceProjectSaveSchema = z.object({
+  id: z.string().optional(),
+  name: z.string(),
+  path: z.string(),
+  description: z.string(),
+  tags: z.array(z.string())
 })
 
 export const importEnvelopeSchema = z.object({

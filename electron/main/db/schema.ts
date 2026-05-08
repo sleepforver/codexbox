@@ -1,6 +1,6 @@
 import type { Database } from 'sql.js'
 
-export const currentSchemaVersion = 1
+export const currentSchemaVersion = 3
 
 export function initializeSchema(db: Database): void {
   db.run(`
@@ -30,6 +30,7 @@ export function initializeSchema(db: Database): void {
       url TEXT NOT NULL,
       headers TEXT NOT NULL,
       body TEXT NOT NULL,
+      project_id TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -41,6 +42,7 @@ export function initializeSchema(db: Database): void {
       prompt TEXT NOT NULL,
       output TEXT NOT NULL,
       model TEXT NOT NULL,
+      project_id TEXT,
       created_at TEXT NOT NULL
     );
 
@@ -55,6 +57,17 @@ export function initializeSchema(db: Database): void {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS workspace_projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      path TEXT NOT NULL,
+      description TEXT NOT NULL,
+      tags TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_opened_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -62,5 +75,6 @@ export function initializeSchema(db: Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_ai_history_task_created ON ai_history (task_type, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_prompt_templates_task ON ai_prompt_templates (task_type, is_builtin DESC, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_workspace_projects_updated ON workspace_projects (updated_at DESC);
   `)
 }

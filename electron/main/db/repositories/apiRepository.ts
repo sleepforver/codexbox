@@ -53,8 +53,10 @@ export async function saveApiToolStateToDb(state: ApiToolState): Promise<ApiTool
   return getApiToolStateFromDb()
 }
 
-export async function getApiSavedRequestsFromDb(): Promise<ApiSavedRequest[]> {
+export async function getApiSavedRequestsFromDb(projectId?: string): Promise<ApiSavedRequest[]> {
   const db = await getDatabase()
+  const where = projectId ? 'WHERE project_id = ?' : ''
+  const params = projectId ? [projectId] : []
   const rows = readMany<{
     id: string
     name: string
@@ -62,9 +64,16 @@ export async function getApiSavedRequestsFromDb(): Promise<ApiSavedRequest[]> {
     url: string
     headers: string
     body: string
+    project_id: string | null
     created_at: string
     updated_at: string
-  }>(db, 'SELECT id, name, method, url, headers, body, created_at, updated_at FROM api_saved_requests ORDER BY updated_at DESC')
+  }>(
+    db,
+    `SELECT id, name, method, url, headers, body, project_id, created_at, updated_at
+      FROM api_saved_requests ${where}
+      ORDER BY updated_at DESC`,
+    params
+  )
 
   return rows.map((row) => ({
     id: row.id,
@@ -73,6 +82,7 @@ export async function getApiSavedRequestsFromDb(): Promise<ApiSavedRequest[]> {
     url: row.url,
     headers: JSON.parse(row.headers) as ApiSavedRequest['headers'],
     body: row.body,
+    projectId: row.project_id ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }))
@@ -92,8 +102,8 @@ export async function saveApiRequestToDb(
   run(
     db,
     `INSERT OR REPLACE INTO api_saved_requests
-      (id, name, method, url, headers, body, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, name, method, url, headers, body, project_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       parsed.name.trim() || `${parsed.method} ${parsed.url}`,
@@ -101,12 +111,13 @@ export async function saveApiRequestToDb(
       parsed.url,
       JSON.stringify(parsed.headers),
       parsed.body,
+      parsed.projectId ?? null,
       existing?.created_at || now,
       now
     ]
   )
   persist(db)
-  return getApiSavedRequestsFromDb()
+  return getApiSavedRequestsFromDb(parsed.projectId)
 }
 
 export async function deleteApiRequestFromDb(id: string): Promise<ApiSavedRequest[]> {

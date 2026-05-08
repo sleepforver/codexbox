@@ -10,7 +10,9 @@ import type {
   AppSettingsUpdate,
   DatabaseInfo,
   DatabaseMaintenanceCleanupRequest,
-  DatabaseMaintenanceResponse
+  DatabaseMaintenanceResponse,
+  WorkspaceProject,
+  WorkspaceProjectSaveRequest
 } from '../../../src/shared/ipc.js'
 import {
   backupDatabaseToFile,
@@ -19,18 +21,22 @@ import {
   deleteAiHistoryFromDb,
   deleteAiPromptTemplateFromDb,
   deleteApiRequestFromDb,
+  deleteWorkspaceProjectFromDb,
   getAiHistoryFromDb,
   getAiPromptTemplatesFromDb,
   getApiSavedRequestsFromDb,
   getApiToolStateFromDb,
   getDatabaseInfoFromDb,
   getSetting,
+  listWorkspaceProjectsFromDb,
+  markWorkspaceProjectOpenedInDb,
   resetBuiltinPromptTemplatesInDb,
   restoreDatabaseFromFile,
   saveAiHistoryToDb,
   saveAiPromptTemplateToDb,
   saveApiRequestToDb,
   saveApiToolStateToDb,
+  saveWorkspaceProjectToDb,
   setSetting
 } from './database.js'
 
@@ -102,8 +108,8 @@ export function saveApiToolState(state: ApiToolState): Promise<ApiToolState> {
   return saveApiToolStateToDb(state)
 }
 
-export function getApiSavedRequests(): Promise<ApiSavedRequest[]> {
-  return getApiSavedRequestsFromDb()
+export function getApiSavedRequests(projectId?: string): Promise<ApiSavedRequest[]> {
+  return getApiSavedRequestsFromDb(projectId)
 }
 
 export function saveApiSavedRequest(
@@ -116,8 +122,8 @@ export function deleteApiSavedRequest(id: string): Promise<ApiSavedRequest[]> {
   return deleteApiRequestFromDb(id)
 }
 
-export function getAiHistory(taskType?: AiTaskType): Promise<AiHistoryItem[]> {
-  return getAiHistoryFromDb(taskType)
+export function getAiHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]> {
+  return getAiHistoryFromDb(taskType, projectId)
 }
 
 export function saveAiHistory(request: AiHistorySaveRequest): Promise<AiHistoryItem[]> {
@@ -128,8 +134,8 @@ export function deleteAiHistory(id: string, taskType?: AiTaskType): Promise<AiHi
   return deleteAiHistoryFromDb(id, taskType)
 }
 
-export function clearAiHistory(taskType?: AiTaskType): Promise<AiHistoryItem[]> {
-  return clearAiHistoryFromDb(taskType)
+export function clearAiHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]> {
+  return clearAiHistoryFromDb(taskType, projectId)
 }
 
 export function getAiPromptTemplates(taskType?: AiTaskType): Promise<AiPromptTemplate[]> {
@@ -162,4 +168,20 @@ export function restoreDatabase(path: string): Promise<DatabaseMaintenanceRespon
 
 export function cleanupDatabase(request: DatabaseMaintenanceCleanupRequest): Promise<DatabaseMaintenanceResponse> {
   return cleanupDatabaseInDb(request)
+}
+
+export function listWorkspaceProjects(): Promise<WorkspaceProject[]> {
+  return listWorkspaceProjectsFromDb()
+}
+
+export function saveWorkspaceProject(request: WorkspaceProjectSaveRequest): Promise<WorkspaceProject[]> {
+  return saveWorkspaceProjectToDb(request)
+}
+
+export function deleteWorkspaceProject(id: string): Promise<WorkspaceProject[]> {
+  return deleteWorkspaceProjectFromDb(id)
+}
+
+export function markWorkspaceProjectOpened(id: string): Promise<WorkspaceProject[]> {
+  return markWorkspaceProjectOpenedInDb(id)
 }

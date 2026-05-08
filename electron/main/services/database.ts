@@ -25,3 +25,9 @@ export {
   restoreDatabaseFromFile,
   cleanupDatabaseInDb
 } from '../db/repositories/databaseMaintenanceRepository.js'
+export {
+  listWorkspaceProjectsFromDb,
+  saveWorkspaceProjectToDb,
+  deleteWorkspaceProjectFromDb,
+  markWorkspaceProjectOpenedInDb
+} from '../db/repositories/projectRepository.js'

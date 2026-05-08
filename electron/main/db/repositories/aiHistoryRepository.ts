@@ -4,35 +4,40 @@ import { getDatabase, persist } from '../connection.js'
 import { readMany, run } from '../runtime.js'
 import { aiHistorySaveSchema, aiTaskTypeSchema } from '../../validation/schemas.js'
 
-export async function getAiHistoryFromDb(taskType?: AiTaskType): Promise<AiHistoryItem[]> {
+export async function getAiHistoryFromDb(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]> {
   const db = await getDatabase()
   if (taskType !== undefined) aiTaskTypeSchema.parse(taskType)
-  const rows = taskType
-    ? readMany<{
-        id: string
-        task_type: AiTaskType
-        title: string
-        prompt: string
-        output: string
-        model: string
-        created_at: string
-      }>(
-        db,
-        'SELECT id, task_type, title, prompt, output, model, created_at FROM ai_history WHERE task_type = ? ORDER BY created_at DESC LIMIT 50',
-        [taskType]
-      )
-    : readMany<{
-        id: string
-        task_type: AiTaskType
-        title: string
-        prompt: string
-        output: string
-        model: string
-        created_at: string
-      }>(
-        db,
-        'SELECT id, task_type, title, prompt, output, model, created_at FROM ai_history ORDER BY created_at DESC LIMIT 100'
-      )
+  const filters: string[] = []
+  const params: string[] = []
+
+  if (taskType) {
+    filters.push('task_type = ?')
+    params.push(taskType)
+  }
+  if (projectId) {
+    filters.push('project_id = ?')
+    params.push(projectId)
+  }
+
+  const where = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
+  const limit = taskType || projectId ? 50 : 100
+  const rows = readMany<{
+    id: string
+    task_type: AiTaskType
+    title: string
+    prompt: string
+    output: string
+    model: string
+    project_id: string | null
+    created_at: string
+  }>(
+    db,
+    `SELECT id, task_type, title, prompt, output, model, project_id, created_at
+      FROM ai_history ${where}
+      ORDER BY created_at DESC
+      LIMIT ${limit}`,
+    params
+  )
 
   return rows.map((row) => ({
     id: row.id,
@@ -41,6 +46,7 @@ export async function getAiHistoryFromDb(taskType?: AiTaskType): Promise<AiHisto
     prompt: row.prompt,
     output: row.output,
     model: row.model,
+    projectId: row.project_id ?? undefined,
     createdAt: row.created_at
   }))
 }
@@ -54,12 +60,12 @@ export async function saveAiHistoryToDb(request: AiHistorySaveRequest): Promise<
   run(
     db,
     `INSERT INTO ai_history
-      (id, task_type, title, prompt, output, model, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), parsed.taskType, title, parsed.prompt, parsed.output, parsed.model, now]
+      (id, task_type, title, prompt, output, model, project_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), parsed.taskType, title, parsed.prompt, parsed.output, parsed.model, parsed.projectId ?? null, now]
   )
   persist(db)
-  return getAiHistoryFromDb(parsed.taskType)
+  return getAiHistoryFromDb(parsed.taskType, parsed.projectId)
 }
 
 export async function deleteAiHistoryFromDb(id: string, taskType?: AiTaskType): Promise<AiHistoryItem[]> {
@@ -69,14 +75,24 @@ export async function deleteAiHistoryFromDb(id: string, taskType?: AiTaskType): 
   return getAiHistoryFromDb(taskType)
 }
 
-export async function clearAiHistoryFromDb(taskType?: AiTaskType): Promise<AiHistoryItem[]> {
+export async function clearAiHistoryFromDb(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]> {
   const db = await getDatabase()
+  const filters: string[] = []
+  const params: string[] = []
   if (taskType) {
     aiTaskTypeSchema.parse(taskType)
-    run(db, 'DELETE FROM ai_history WHERE task_type = ?', [taskType])
+    filters.push('task_type = ?')
+    params.push(taskType)
+  }
+  if (projectId) {
+    filters.push('project_id = ?')
+    params.push(projectId)
+  }
+  if (filters.length) {
+    run(db, `DELETE FROM ai_history WHERE ${filters.join(' AND ')}`, params)
   } else {
     run(db, 'DELETE FROM ai_history')
   }
   persist(db)
-  return getAiHistoryFromDb(taskType)
+  return getAiHistoryFromDb(taskType, projectId)
 }

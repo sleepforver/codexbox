@@ -85,11 +85,47 @@ export function migrateSchema(db: Database): void {
   const storedVersion = Number(getMeta(db, 'schema_version') || 0)
 
   if (storedVersion < 1) {
-    setMeta(db, 'schema_version', String(currentSchemaVersion))
-    return
+    setMeta(db, 'schema_version', '1')
   }
 
-  if (storedVersion < currentSchemaVersion) {
-    setMeta(db, 'schema_version', String(currentSchemaVersion))
+  const normalizedVersion = Number(getMeta(db, 'schema_version') || 1)
+
+  if (normalizedVersion < 2) {
+    run(
+      db,
+      `CREATE TABLE IF NOT EXISTS workspace_projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL,
+        description TEXT NOT NULL,
+        tags TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_opened_at TEXT
+      )`
+    )
+    run(db, 'CREATE INDEX IF NOT EXISTS idx_workspace_projects_updated ON workspace_projects (updated_at DESC)')
+    setMeta(db, 'schema_version', '2')
   }
+
+  const versionAfterProjects = Number(getMeta(db, 'schema_version') || 2)
+
+  if (versionAfterProjects < 3) {
+    if (!columnExists(db, 'ai_history', 'project_id')) {
+      run(db, 'ALTER TABLE ai_history ADD COLUMN project_id TEXT')
+    }
+    if (!columnExists(db, 'api_saved_requests', 'project_id')) {
+      run(db, 'ALTER TABLE api_saved_requests ADD COLUMN project_id TEXT')
+    }
+    run(db, 'CREATE INDEX IF NOT EXISTS idx_ai_history_project ON ai_history (project_id, created_at DESC)')
+    run(db, 'CREATE INDEX IF NOT EXISTS idx_api_saved_requests_project ON api_saved_requests (project_id, updated_at DESC)')
+    setMeta(db, 'schema_version', '3')
+  }
+
+  if (currentSchemaVersion > 3) setMeta(db, 'schema_version', String(currentSchemaVersion))
+}
+
+function columnExists(db: Database, table: string, column: string): boolean {
+  const safeTable = table.replace(/[^a-z_]/g, '')
+  return readOne<{ name: string }>(db, `SELECT name FROM pragma_table_info('${safeTable}') WHERE name = ?`, [column]) !== null
 }

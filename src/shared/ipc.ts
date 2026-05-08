@@ -84,6 +84,7 @@ export interface ApiSavedRequest {
   url: string
   headers: HeaderPair[]
   body: string
+  projectId?: string
   createdAt: string
   updatedAt: string
 }
@@ -171,6 +172,7 @@ export interface AiHistoryItem {
   prompt: string
   output: string
   model: string
+  projectId?: string
   createdAt: string
 }
 
@@ -180,6 +182,7 @@ export interface AiHistorySaveRequest {
   prompt: string
   output: string
   model: string
+  projectId?: string
 }
 
 export interface AiPromptTemplate {
@@ -249,6 +252,25 @@ export interface AppSettingsUpdate {
   defaultWorkspace?: string
   apiTimeoutMs?: number
   autoFormatJsonResponse?: boolean
+}
+
+export interface WorkspaceProject {
+  id: string
+  name: string
+  path: string
+  description: string
+  tags: string[]
+  createdAt: string
+  updatedAt: string
+  lastOpenedAt: string | null
+}
+
+export interface WorkspaceProjectSaveRequest {
+  id?: string
+  name: string
+  path: string
+  description: string
+  tags: string[]
 }
 
 export interface DatabaseTableStat {
@@ -327,7 +349,7 @@ export interface DevtoolsApi {
     send(request: ApiSendRequest): Promise<ApiSendResponse>
     getState(): Promise<ApiToolState>
     saveState(state: ApiToolState): Promise<ApiToolState>
-    getSavedRequests(): Promise<ApiSavedRequest[]>
+    getSavedRequests(projectId?: string): Promise<ApiSavedRequest[]>
     saveRequest(request: Omit<ApiSavedRequest, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<ApiSavedRequest[]>
     deleteRequest(id: string): Promise<ApiSavedRequest[]>
   }
@@ -345,10 +367,10 @@ export interface DevtoolsApi {
     ): Promise<AiStreamStartResponse>
     cancelStream(requestId: string): Promise<void>
     testConnection(): Promise<AiConnectionResponse>
-    getHistory(taskType?: AiTaskType): Promise<AiHistoryItem[]>
+    getHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]>
     saveHistory(request: AiHistorySaveRequest): Promise<AiHistoryItem[]>
     deleteHistory(id: string, taskType?: AiTaskType): Promise<AiHistoryItem[]>
-    clearHistory(taskType?: AiTaskType): Promise<AiHistoryItem[]>
+    clearHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]>
     getPromptTemplates(taskType?: AiTaskType): Promise<AiPromptTemplate[]>
     savePromptTemplate(request: AiPromptTemplateSaveRequest): Promise<AiPromptTemplate[]>
     deletePromptTemplate(id: string, taskType?: AiTaskType): Promise<AiPromptTemplate[]>
@@ -367,6 +389,12 @@ export interface DevtoolsApi {
     importPromptTemplates(): Promise<DataTransferResponse | null>
     exportApiRequests(): Promise<DataTransferResponse | null>
     importApiRequests(): Promise<DataTransferResponse | null>
+  }
+  projects: {
+    list(): Promise<WorkspaceProject[]>
+    save(request: WorkspaceProjectSaveRequest): Promise<WorkspaceProject[]>
+    delete(id: string): Promise<WorkspaceProject[]>
+    markOpened(id: string): Promise<WorkspaceProject[]>
   }
   geo: {
     analyze(request: GeoAnalyzeRequest): Promise<GeoAnalyzeResponse>
