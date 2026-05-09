@@ -37,13 +37,14 @@ Root directory: /
 
 ## 下载链接
 
-首页当前把下载入口指向 `v0.1.0` GitHub Release Asset 直链：
+首页当前把下载入口指向 Cloudflare R2 公网直链：
 
 ```text
-https://github.com/sleepforver/codexbox/releases/download/v0.1.0/AI.0.1.0.exe
+https://pub-bade506d946641b0b4cbb6b345690acc.r2.dev/AI%20%E5%BC%80%E5%8F%91%E5%B7%A5%E5%85%B7%E7%AE%B1%20Setup%200.1.0.exe
+https://pub-bade506d946641b0b4cbb6b345690acc.r2.dev/AI%20%E5%BC%80%E5%8F%91%E5%B7%A5%E5%85%B7%E7%AE%B1%200.1.0.exe
 ```
 
-用户点击首页下载按钮会直接开始下载 `AI.0.1.0.exe`。
+用户点击首页下载按钮会直接开始下载对应 exe。
 
 ## 操作手册页面
 
