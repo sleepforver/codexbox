@@ -38,3 +38,17 @@ Root directory: /
 ## 下载链接
 
 首页当前把安装版和便携版下载入口指向 `v0.1.0` GitHub Release 标签页。正式公开分发时，建议把安装包上传到该 Release，或上传到 Cloudflare R2 后替换为真实文件下载地址。
+
+## 操作手册页面
+
+构建脚本会读取仓库根目录 `README.md`，生成渲染后的 HTML 页面：
+
+```text
+site/dist/manual.html
+```
+
+同时保留 Markdown 原文：
+
+```text
+site/dist/README.md
+```
