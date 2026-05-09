@@ -2,11 +2,7 @@ import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 
-const requiredOutputs = [
-  'out/main/index.js',
-  'out/preload/index.js',
-  'out/renderer/index.html'
-]
+const requiredOutputs = ['out/main/index.js', 'out/preload/index.js', 'out/renderer/index.html']
 
 const missing = requiredOutputs.filter((item) => {
   const path = join(process.cwd(), item)

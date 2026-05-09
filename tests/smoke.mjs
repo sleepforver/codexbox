@@ -109,13 +109,16 @@ function formatAiHistoryMarkdown(items) {
   return lines.join('\n')
 }
 
-assert.equal(resolveVariables('{{baseUrl}}/users/{{id}}', [
-  { key: 'baseUrl', value: 'https://example.com' },
-  { key: 'id', value: '42' }
-]), 'https://example.com/users/42')
+assert.equal(
+  resolveVariables('{{baseUrl}}/users/{{id}}', [
+    { key: 'baseUrl', value: 'https://example.com' },
+    { key: 'id', value: '42' }
+  ]),
+  'https://example.com/users/42'
+)
 
-const json = { profile: { industry: 'power-gis' }, modules: ['json', 'api'] }
-assert.deepEqual(readPathValue(json, 'profile.industry'), { matched: true, value: 'power-gis' })
+const json = { profile: { industry: 'general-devtools' }, modules: ['json', 'api'] }
+assert.deepEqual(readPathValue(json, 'profile.industry'), { matched: true, value: 'general-devtools' })
 assert.deepEqual(readPathValue(json, 'modules[1]'), { matched: true, value: 'api' })
 assert.equal(readPathValue(json, 'missing.path').matched, false)
 
@@ -130,17 +133,30 @@ const geo = summarizeGeoJson({
   type: 'FeatureCollection',
   features: [
     { type: 'Feature', geometry: { type: 'Point', coordinates: [120, 30] }, properties: {} },
-    { type: 'Feature', geometry: { type: 'LineString', coordinates: [[120, 30], [121, 31]] }, properties: {} }
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [120, 30],
+          [121, 31]
+        ]
+      },
+      properties: {}
+    }
   ]
 })
-assert.deepEqual(geo.typeCounts, [['Point', 1], ['LineString', 1]])
+assert.deepEqual(geo.typeCounts, [
+  ['Point', 1],
+  ['LineString', 1]
+])
 assert.deepEqual(geo.issues, [])
 
 const template = '请分析 {{ code }} 并关注 {{industry}}，再次检查 {{code}}。'
 assert.deepEqual(extractPromptVariables(template), ['code', 'industry'])
 assert.equal(
-  renderPromptTemplate(template, { code: 'GeoJSON 校验函数', industry: '电力地理' }),
-  '请分析 GeoJSON 校验函数 并关注 电力地理，再次检查 GeoJSON 校验函数。'
+  renderPromptTemplate(template, { code: 'GeoJSON 校验函数', industry: '通用开发工具' }),
+  '请分析 GeoJSON 校验函数 并关注 通用开发工具，再次检查 GeoJSON 校验函数。'
 )
 
 const templatesEnvelope = exportEnvelope('prompt-templates', [
