@@ -2,9 +2,11 @@
 
 ## 配置
 
-- `.env.example` 包含 `SILICONFLOW_API_KEY`、`SILICONFLOW_BASE_URL`、`SILICONFLOW_MODEL`。
+- `.env.example` 包含 SiliconFlow、OpenAI、DeepSeek 和 OpenAI 兼容平台的 API Key / Base URL 示例，不包含模型环境变量。
 - `.env` 未提交到仓库。
-- 设置页能显示 API Key 来源、Base URL、模型和超时。
+- 设置页能选择模型平台，编辑 Base URL、模型和超时。
+- 设置页保存 API Key 时写入项目根目录 `.env`，不写入 SQLite。
+- 模型配置只来自设置页保存值或平台默认值，不被 `.env` 中的模型变量覆盖。
 - 测试模型连接能给出成功耗时或明确错误原因。
 
 ## 架构
@@ -53,6 +55,8 @@
 - 后端 Spring Controller 可自动扫描出 API 请求并按 Controller 分组。
 - 前端项目 fetch / axios 调用可自动扫描出 API 请求并按来源文件分组。
 - API 自动发现扫描过程不应阻断界面操作，扫描完成后先预览再导入。
+- API 自动发现和导入后的请求集合都应按分组折叠展示，避免大量接口撑长页面。
+- 保存后的相对路径接口应保留 `{{baseUrl}}` 前缀，发送时再解析环境变量。
 - 项目数据包可导出 JSON。
 - 项目数据包可导入 JSON。
 - 项目列表可导入 / 导出 JSON。
