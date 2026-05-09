@@ -7,13 +7,16 @@
   "private": true,
   "scripts": {
     "dev": "set ELECTRON_RUN_AS_NODE=& electron-vite dev",
-    "build": "npm run typecheck && electron-vite build && npm run verify:build",
+    "build": "npm run lint && electron-vite build && npm run verify:build",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "start": "set ELECTRON_RUN_AS_NODE=& electron-vite preview",
     "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
-    "lint": "npm run typecheck",
-    "test": "node tests/smoke.mjs",
+    "lint": "eslint . && npm run format:check && npm run typecheck",
+    "lint:eslint": "eslint .",
+    "format": "prettier --write \"{electron,src,tests,scripts,docs}/**/*.{ts,vue,mjs,md}\" \"*.{json,md,mts}\"",
+    "format:check": "prettier --check \"{electron,src,tests,scripts,docs}/**/*.{ts,vue,mjs,md}\" \"*.{json,md,mts}\"",
+    "test": "node tests/smoke.mjs && node scripts/verify-phase3.mjs",
     "verify:build": "node scripts/verify-build.mjs"
   },
   "build": {
@@ -62,12 +65,19 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "22.10.2",
     "electron": "30.5.1",
     "electron-builder": "^26.8.1",
     "electron-vite": "3.1.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.9.1",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
     "typescript": "5.7.3",
+    "typescript-eslint": "^8.59.2",
     "vite": "6.4.2",
     "vue-tsc": "2.2.0"
   }
