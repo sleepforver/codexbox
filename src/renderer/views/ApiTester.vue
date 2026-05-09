@@ -47,6 +47,11 @@ interface ApiAssertionResult {
   passed: boolean
   message: string
 }
+interface SavedRequestGroup {
+  name: string
+  sourceType: NonNullable<ApiSavedRequest['sourceType']>
+  requests: ApiSavedRequest[]
+}
 const assertions = ref<ApiAssertion[]>([{ type: 'status', path: '', expected: '200' }])
 const activeTab = ref<'body' | 'headers' | 'summary' | 'assertions' | 'ai'>('body')
 const loading = ref(false)
@@ -65,6 +70,7 @@ const importingOpenApi = ref(false)
 const importingDiscoveredApis = ref(false)
 const discoveryImportMode = ref<'skip' | 'overwrite'>('skip')
 const collapsedDiscoveryGroups = ref<Record<string, boolean>>({})
+const collapsedSavedRequestGroups = ref<Record<string, boolean>>({})
 const requestName = ref('')
 const timeoutMs = ref(30000)
 const aiOutput = ref('')
@@ -87,6 +93,18 @@ const selectedTemplate = computed(() => templates.value.find((item) => item.id =
 const selectedProject = computed(() => projects.value.find((item) => item.id === selectedProjectId.value) ?? null)
 const selectedProjectLabel = computed(() => selectedProject.value?.name ?? '全局')
 const discoveredRequests = computed(() => apiDiscovery.value?.groups.flatMap((group) => group.requests) ?? [])
+const savedRequestGroups = computed<SavedRequestGroup[]>(() => {
+  const groups = new Map<string, SavedRequestGroup>()
+  for (const request of savedRequests.value) {
+    const name = request.groupName?.trim() || '手动请求'
+    const sourceType = request.sourceType ?? 'manual'
+    const key = `${sourceType}:${name}`
+    const group = groups.get(key) ?? { name, sourceType, requests: [] }
+    group.requests.push(request)
+    groups.set(key, group)
+  }
+  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
+})
 const assertionResults = computed(() => evaluateAssertions())
 const assertionSummary = computed(() => {
   if (!response.value?.ok || !assertionResults.value.length) return null
@@ -157,7 +175,7 @@ async function discoverProjectApis(): Promise<void> {
       projectId: selectedProject.value.id,
       projectPath: selectedProject.value.path
     })
-    collapsedDiscoveryGroups.value = {}
+    collapsedDiscoveryGroups.value = createDiscoveryCollapseState(apiDiscovery.value, true)
     status.value = `扫描完成，发现 ${discoveredRequests.value.length} 个接口`
     statusType.value = discoveredRequests.value.length ? 'success' : 'error'
     showToast(status.value, statusType.value === 'success' ? 'success' : 'error')
@@ -179,34 +197,49 @@ async function importDiscoveredApis(): Promise<void> {
   }
   importingDiscoveredApis.value = true
   status.value = '正在导入扫描接口'
-  status.value = '正在导入扫描接口'
   try {
+    const requests = discoveredRequests.value.map(toPlainDiscoveredRequest)
     savedRequests.value = await devtoolsApi.api.importDiscoveredRequests(
       selectedProjectId.value || undefined,
-      discoveredRequests.value,
+      requests,
       discoveryImportMode.value
     )
-    status.value = `扫描接口导入完成，请在请求集合中查看`
-    statusType.value = 'success'
+    collapsedSavedRequestGroups.value = createSavedRequestCollapseState(true)
     status.value = '扫描接口导入完成，请在请求集合中查看'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
   } catch (error) {
     status.value = error instanceof Error ? error.message : '导入扫描接口失败'
     statusType.value = 'error'
-    status.value = error instanceof Error ? error.message : '导入扫描接口失败'
+    showToast(status.value, 'error')
   } finally {
     importingDiscoveredApis.value = false
+  }
+}
+
+function toPlainDiscoveredRequest(request: ApiDiscoveredRequest): ApiDiscoveredRequest {
+  return {
+    id: request.id,
+    name: request.name,
+    method: request.method,
+    url: withBaseUrlPlaceholder(request.url),
+    headers: request.headers.map((header) => ({ key: header.key, value: header.value })),
+    body: request.body,
+    groupName: request.groupName,
+    sourceType: request.sourceType,
+    sourcePath: request.sourcePath,
+    confidence: request.confidence
   }
 }
 
 async function loadOpenApiRequests(): Promise<void> {
   importingOpenApi.value = true
   status.value = '正在导入 OpenAPI / Swagger 文档'
-  status.value = '正在导入 OpenAPI / Swagger 文档'
   try {
     const result = await devtoolsApi.api.loadOpenApiRequests()
     if (!result) return
     apiDiscovery.value = result
-    collapsedDiscoveryGroups.value = {}
+    collapsedDiscoveryGroups.value = createDiscoveryCollapseState(result, true)
     status.value = `OpenAPI 导入完成，发现 ${discoveredRequests.value.length} 个接口`
     statusType.value = discoveredRequests.value.length ? 'success' : 'error'
     showToast(status.value, statusType.value === 'success' ? 'success' : 'error')
@@ -247,7 +280,7 @@ function discoveryGroupKey(group: { sourceType: string; name: string }): string 
 }
 
 function isDiscoveryGroupCollapsed(group: { sourceType: string; name: string }): boolean {
-  return collapsedDiscoveryGroups.value[discoveryGroupKey(group)] ?? false
+  return collapsedDiscoveryGroups.value[discoveryGroupKey(group)] ?? true
 }
 
 function toggleDiscoveryGroup(group: { sourceType: string; name: string }): void {
@@ -256,6 +289,39 @@ function toggleDiscoveryGroup(group: { sourceType: string; name: string }): void
     ...collapsedDiscoveryGroups.value,
     [key]: !isDiscoveryGroupCollapsed(group)
   }
+}
+
+function createDiscoveryCollapseState(result: ApiDiscoveryResponse, collapsed: boolean): Record<string, boolean> {
+  return Object.fromEntries(result.groups.map((group) => [discoveryGroupKey(group), collapsed]))
+}
+
+function setAllDiscoveryGroupsCollapsed(collapsed: boolean): void {
+  if (!apiDiscovery.value) return
+  collapsedDiscoveryGroups.value = createDiscoveryCollapseState(apiDiscovery.value, collapsed)
+}
+
+function savedRequestGroupKey(group: Pick<SavedRequestGroup, 'sourceType' | 'name'>): string {
+  return `${group.sourceType}:${group.name}`
+}
+
+function isSavedRequestGroupCollapsed(group: SavedRequestGroup): boolean {
+  return collapsedSavedRequestGroups.value[savedRequestGroupKey(group)] ?? true
+}
+
+function toggleSavedRequestGroup(group: SavedRequestGroup): void {
+  const key = savedRequestGroupKey(group)
+  collapsedSavedRequestGroups.value = {
+    ...collapsedSavedRequestGroups.value,
+    [key]: !isSavedRequestGroupCollapsed(group)
+  }
+}
+
+function createSavedRequestCollapseState(collapsed: boolean): Record<string, boolean> {
+  return Object.fromEntries(savedRequestGroups.value.map((group) => [savedRequestGroupKey(group), collapsed]))
+}
+
+function setAllSavedRequestGroupsCollapsed(collapsed: boolean): void {
+  collapsedSavedRequestGroups.value = createSavedRequestCollapseState(collapsed)
 }
 
 function ensureEnvVariable(key: string, value = ''): void {
@@ -288,6 +354,13 @@ function splitDiscoveredUrl(value: string): { path: string; params: HeaderPair[]
     })
     .filter((item) => item.key)
   return { path: path || '/', params }
+}
+
+function withBaseUrlPlaceholder(value: string): string {
+  const text = value.trim()
+  if (!text) return '{{baseUrl}}'
+  if (/^(https?:)?\/\//i.test(text) || text.startsWith('{{')) return text
+  return `{{baseUrl}}${text.startsWith('/') ? text : `/${text}`}`
 }
 
 function syncVariablesFromRequest(item: ApiDiscoveredRequest, params: HeaderPair[]): void {
@@ -491,13 +564,13 @@ function removeEnv(index: number): void {
 
 function applyHistory(item: ApiHistoryItem): void {
   method.value = item.method
-  url.value = item.url
+  url.value = withBaseUrlPlaceholder(item.url)
 }
 
 function loadSavedRequest(item: ApiSavedRequest): void {
   requestName.value = item.name
   method.value = item.method
-  url.value = item.url
+  url.value = withBaseUrlPlaceholder(item.url)
   headers.value = item.headers.length ? item.headers : [{ key: 'Accept', value: 'application/json' }]
   body.value = item.body
   status.value = `已载入请求：${item.name}`
@@ -506,7 +579,8 @@ function loadSavedRequest(item: ApiSavedRequest): void {
 }
 
 function loadDiscoveredRequest(item: ApiDiscoveredRequest): void {
-  const parsedUrl = splitDiscoveredUrl(item.url)
+  const requestUrl = withBaseUrlPlaceholder(item.url)
+  const parsedUrl = splitDiscoveredUrl(requestUrl)
   requestName.value = item.name
   method.value = item.method
   url.value = parsedUrl.path
@@ -514,6 +588,7 @@ function loadDiscoveredRequest(item: ApiDiscoveredRequest): void {
   headers.value = item.headers.length ? item.headers : [{ key: 'Accept', value: 'application/json' }]
   body.value = item.body
   syncVariablesFromRequest(item, parsedUrl.params)
+  for (const key of extractTemplateVariables(requestUrl)) ensureEnvVariable(key)
   void persistState()
   status.value = `已载入扫描接口：${item.name}`
   statusType.value = 'success'
@@ -854,7 +929,26 @@ onMounted(() => {
           </div>
 
           <div class="field">
-            <label for="request-name">请求集合</label>
+            <div class="meta-row">
+              <label for="request-name">请求集合</label>
+              <span class="badge">{{ savedRequests.length }}</span>
+              <button
+                class="button secondary compact-button"
+                type="button"
+                :disabled="!savedRequestGroups.length"
+                @click="setAllSavedRequestGroupsCollapsed(false)"
+              >
+                展开分组
+              </button>
+              <button
+                class="button secondary compact-button"
+                type="button"
+                :disabled="!savedRequestGroups.length"
+                @click="setAllSavedRequestGroupsCollapsed(true)"
+              >
+                收起分组
+              </button>
+            </div>
             <div class="inline-row">
               <input id="request-name" v-model="requestName" class="input" placeholder="请求名称" />
               <button class="button secondary" type="button" @click="saveCurrentRequest">
@@ -862,90 +956,49 @@ onMounted(() => {
                 保存
               </button>
             </div>
-            <div class="history-list">
-              <div v-for="item in savedRequests" :key="item.id" class="list-item action-item">
-                <button class="plain-list-button" type="button" @click="loadSavedRequest(item)">
-                  <strong>{{ item.name }}</strong>
-                  <small>{{ item.groupName ? `${item.groupName} · ` : '' }}{{ item.method }} {{ item.url }}</small>
-                </button>
-                <button class="icon-button" type="button" aria-label="删除请求" @click="deleteSavedRequest(item.id)">
-                  <Trash2 :size="16" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="meta-row">
-              <Search :size="16" />
-              API 自动发现
-              <span v-if="apiDiscovery" class="badge"
-                >{{ apiDiscovery.projectType }} · {{ discoveredRequests.length }}</span
-              >
-            </div>
-            <div class="toolbar">
-              <button
-                class="button secondary compact-button"
-                type="button"
-                :disabled="scanningApis || !selectedProject"
-                @click="discoverProjectApis"
-              >
-                {{ scanningApis ? '扫描中' : '扫描当前项目' }}
-              </button>
-              <button
-                class="button secondary compact-button"
-                type="button"
-                :disabled="importingOpenApi"
-                @click="loadOpenApiRequests"
-              >
-                {{ importingOpenApi ? '导入中' : '导入 OpenAPI' }}
-              </button>
-              <select v-model="discoveryImportMode" class="select select-compact">
-                <option value="skip">跳过重复</option>
-                <option value="overwrite">覆盖重复</option>
-              </select>
-              <button
-                class="button compact-button"
-                type="button"
-                :disabled="importingDiscoveredApis || !discoveredRequests.length"
-                @click="importDiscoveredApis"
-              >
-                {{ importingDiscoveredApis ? '导入中' : '导入扫描结果' }}
-              </button>
-            </div>
-            <div v-if="apiDiscovery" class="history-list compact-history">
+            <div class="history-list api-request-list">
               <div
-                v-for="group in apiDiscovery.groups"
-                :key="discoveryGroupKey(group)"
+                v-for="group in savedRequestGroups"
+                :key="savedRequestGroupKey(group)"
                 class="list-item discovery-group"
               >
                 <button
                   class="plain-list-button discovery-group-header"
                   type="button"
-                  @click="toggleDiscoveryGroup(group)"
+                  @click="toggleSavedRequestGroup(group)"
                 >
                   <span>
                     <strong>{{ group.name }}</strong>
                     <small>{{ group.sourceType }} · {{ group.requests.length }} 个接口</small>
                   </span>
-                  <span class="badge">{{ isDiscoveryGroupCollapsed(group) ? '展开' : '收起' }}</span>
+                  <span class="badge">{{ isSavedRequestGroupCollapsed(group) ? '展开' : '收起' }}</span>
                 </button>
-                <div v-if="!isDiscoveryGroupCollapsed(group)" class="stack discovery-group-list">
-                  <button
-                    v-for="item in group.requests"
-                    :key="item.id"
-                    class="plain-list-button discovered-api-button"
-                    type="button"
-                    @click="loadDiscoveredRequest(item)"
-                  >
-                    <strong>{{ item.method }} {{ item.url }}</strong>
-                    <small>{{ item.sourcePath }} · 置信度 {{ item.confidence }}%</small>
-                  </button>
+                <div v-if="!isSavedRequestGroupCollapsed(group)" class="stack discovery-group-list">
+                  <div v-for="item in group.requests" :key="item.id" class="action-item api-request-item">
+                    <button
+                      class="plain-list-button discovered-api-button"
+                      type="button"
+                      @click="loadSavedRequest(item)"
+                    >
+                      <span class="method-badge">{{ item.method }}</span>
+                      <span class="discovered-api-text">
+                        <strong>{{ item.name }}</strong>
+                        <small>{{ withBaseUrlPlaceholder(item.url) }}</small>
+                      </span>
+                    </button>
+                    <button
+                      class="icon-button"
+                      type="button"
+                      aria-label="删除请求"
+                      @click="deleteSavedRequest(item.id)"
+                    >
+                      <Trash2 :size="16" />
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div v-for="warning in apiDiscovery.warnings" :key="warning" class="badge warning">{{ warning }}</div>
+              <div v-if="!savedRequests.length" class="empty-state compact-empty">暂无保存的请求</div>
             </div>
-            <div v-else class="empty-state compact-empty">选择项目后扫描 Controller、fetch 或 axios 调用</div>
           </div>
 
           <div class="field">
@@ -1134,6 +1187,98 @@ onMounted(() => {
         </div>
 
         <div class="section">
+          <div class="api-discovery-panel">
+            <div class="meta-row">
+              <Search :size="16" />
+              <strong>API 自动发现</strong>
+              <span v-if="apiDiscovery" class="badge"
+                >{{ apiDiscovery.projectType }} · {{ discoveredRequests.length }}</span
+              >
+            </div>
+            <div class="toolbar api-discovery-toolbar">
+              <button
+                class="button secondary compact-button"
+                type="button"
+                :disabled="scanningApis || !selectedProject"
+                @click="discoverProjectApis"
+              >
+                {{ scanningApis ? '扫描中' : '扫描当前项目' }}
+              </button>
+              <button
+                class="button secondary compact-button"
+                type="button"
+                :disabled="importingOpenApi"
+                @click="loadOpenApiRequests"
+              >
+                {{ importingOpenApi ? '导入中' : '导入 OpenAPI' }}
+              </button>
+              <select v-model="discoveryImportMode" class="select select-compact">
+                <option value="skip">跳过重复</option>
+                <option value="overwrite">覆盖重复</option>
+              </select>
+              <button
+                class="button secondary compact-button"
+                type="button"
+                :disabled="!apiDiscovery"
+                @click="setAllDiscoveryGroupsCollapsed(false)"
+              >
+                展开分组
+              </button>
+              <button
+                class="button secondary compact-button"
+                type="button"
+                :disabled="!apiDiscovery"
+                @click="setAllDiscoveryGroupsCollapsed(true)"
+              >
+                收起分组
+              </button>
+              <button
+                class="button compact-button"
+                type="button"
+                :disabled="importingDiscoveredApis || !discoveredRequests.length"
+                @click="importDiscoveredApis"
+              >
+                {{ importingDiscoveredApis ? '导入中' : '导入扫描结果' }}
+              </button>
+            </div>
+            <div v-if="apiDiscovery" class="history-list api-discovery-list">
+              <div
+                v-for="group in apiDiscovery.groups"
+                :key="discoveryGroupKey(group)"
+                class="list-item discovery-group"
+              >
+                <button
+                  class="plain-list-button discovery-group-header"
+                  type="button"
+                  @click="toggleDiscoveryGroup(group)"
+                >
+                  <span>
+                    <strong>{{ group.name }}</strong>
+                    <small>{{ group.sourceType }} · {{ group.requests.length }} 个接口</small>
+                  </span>
+                  <span class="badge">{{ isDiscoveryGroupCollapsed(group) ? '展开' : '收起' }}</span>
+                </button>
+                <div v-if="!isDiscoveryGroupCollapsed(group)" class="stack discovery-group-list">
+                  <button
+                    v-for="item in group.requests"
+                    :key="item.id"
+                    class="plain-list-button discovered-api-button"
+                    type="button"
+                    @click="loadDiscoveredRequest(item)"
+                  >
+                    <span class="method-badge">{{ item.method }}</span>
+                    <span class="discovered-api-text">
+                      <strong>{{ item.url }}</strong>
+                      <small>{{ item.sourcePath }} · 置信度 {{ item.confidence }}%</small>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div v-for="warning in apiDiscovery.warnings" :key="warning" class="badge warning">{{ warning }}</div>
+            </div>
+            <div v-else class="empty-state compact-empty">选择项目后扫描 Controller、fetch 或 axios 调用</div>
+          </div>
+
           <div class="toolbar">
             <span v-if="response?.ok" class="badge" :class="responseClass"
               >{{ response.status }} {{ response.statusText }}</span

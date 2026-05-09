@@ -824,6 +824,30 @@ h1 {
   overflow: auto;
 }
 
+.api-discovery-panel {
+  display: grid;
+  gap: 10px;
+  border-bottom: 1px solid #e5eaf1;
+  padding-bottom: 14px;
+}
+
+.api-discovery-toolbar {
+  align-items: center;
+  gap: 8px;
+}
+
+.api-discovery-list {
+  max-height: 340px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.api-request-list {
+  max-height: 280px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
 .list-item {
   border: 1px solid #e1ebe8;
   border-radius: 8px;
@@ -840,6 +864,10 @@ h1 {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
+}
+
+.api-request-item {
+  padding: 8px;
 }
 
 .git-change-item {
@@ -862,10 +890,37 @@ h1 {
 }
 
 .discovered-api-button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
   border: 1px solid #e1ebe8;
   border-radius: 8px;
   padding: 8px 10px;
   background: #fbfefd;
+}
+
+.discovered-api-text {
+  min-width: 0;
+}
+
+.discovered-api-text strong,
+.discovered-api-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.method-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 8px;
+  padding: 0 8px;
+  color: #31524b;
+  background: #e7f4f0;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .discovered-api-button:hover {
