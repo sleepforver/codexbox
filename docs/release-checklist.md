@@ -85,3 +85,7 @@ npm.cmd run build
 npm.cmd run pack
 npm.cmd run dist
 ```
+
+## 发布说明
+
+- 本期发布说明记录在 `docs/release-notes.md`。
