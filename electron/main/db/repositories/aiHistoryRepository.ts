@@ -28,13 +28,14 @@ export async function getAiHistoryFromDb(taskType?: AiTaskType, projectId?: stri
     prompt: string
     output: string
     model: string
+    is_favorite: number
     project_id: string | null
     created_at: string
   }>(
     db,
-    `SELECT id, task_type, title, prompt, output, model, project_id, created_at
+    `SELECT id, task_type, title, prompt, output, model, is_favorite, project_id, created_at
       FROM ai_history ${where}
-      ORDER BY created_at DESC
+      ORDER BY is_favorite DESC, created_at DESC
       LIMIT ${limit}`,
     params
   )
@@ -46,6 +47,7 @@ export async function getAiHistoryFromDb(taskType?: AiTaskType, projectId?: stri
     prompt: row.prompt,
     output: row.output,
     model: row.model,
+    isFavorite: row.is_favorite === 1,
     projectId: row.project_id ?? undefined,
     createdAt: row.created_at
   }))
@@ -60,16 +62,16 @@ export async function saveAiHistoryToDb(request: AiHistorySaveRequest): Promise<
   run(
     db,
     `INSERT INTO ai_history
-      (id, task_type, title, prompt, output, model, project_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), parsed.taskType, title, parsed.prompt, parsed.output, parsed.model, parsed.projectId ?? null, now]
+      (id, task_type, title, prompt, output, model, is_favorite, project_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), parsed.taskType, title, parsed.prompt, parsed.output, parsed.model, 0, parsed.projectId ?? null, now]
   )
   persist(db)
   return getAiHistoryFromDb(parsed.taskType, parsed.projectId)
 }
 
 export async function importAiHistoryToDb(
-  item: AiHistorySaveRequest & { id?: string; createdAt?: string },
+  item: AiHistorySaveRequest & { id?: string; createdAt?: string; isFavorite?: boolean },
   projectId?: string
 ): Promise<void> {
   const parsed = aiHistorySaveSchema.parse({
@@ -88,11 +90,28 @@ export async function importAiHistoryToDb(
   run(
     db,
     `INSERT OR REPLACE INTO ai_history
-      (id, task_type, title, prompt, output, model, project_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, parsed.taskType, title, parsed.prompt, parsed.output, parsed.model, parsed.projectId ?? null, createdAt]
+      (id, task_type, title, prompt, output, model, is_favorite, project_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      parsed.taskType,
+      title,
+      parsed.prompt,
+      parsed.output,
+      parsed.model,
+      item.isFavorite ? 1 : 0,
+      parsed.projectId ?? null,
+      createdAt
+    ]
   )
   persist(db)
+}
+
+export async function toggleAiHistoryFavoriteInDb(id: string, favorite: boolean): Promise<AiHistoryItem[]> {
+  const db = await getDatabase()
+  run(db, 'UPDATE ai_history SET is_favorite = ? WHERE id = ?', [favorite ? 1 : 0, id])
+  persist(db)
+  return getAiHistoryFromDb()
 }
 
 export async function deleteAiHistoryFromDb(id: string, taskType?: AiTaskType): Promise<AiHistoryItem[]> {

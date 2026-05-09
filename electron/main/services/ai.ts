@@ -11,16 +11,14 @@ import type {
 import { readAiRuntimeConfig } from './settings.js'
 
 const promptTemplates: Record<AiTaskType, string> = {
-  'explain-code':
-    '你是一位电力地理行业的软件开发工程师。请用中文解释代码的意图、关键流程、潜在风险和可改进点，回答要结构清晰。',
+  'explain-code': '你是一位资深软件开发工程师。请用中文解释代码的意图、关键流程、潜在风险和可改进点，回答要结构清晰。',
   'generate-code':
-    '你是一位电力地理行业的软件开发工程师。请根据需求生成清晰、可维护的 TypeScript 代码，并补充使用说明和注意事项。',
+    '你是一位资深软件开发工程师。请根据需求生成清晰、可维护的 TypeScript 代码，并补充使用说明和注意事项。',
   'git-summary':
-    '你是一位电力地理行业的软件开发工程师。请根据 Git diff 用中文总结本次变更，按功能变化、风险点、建议验证三段输出。',
+    '你是一位资深软件开发工程师。请根据 Git diff 用中文总结本次变更，按功能变化、风险点、建议验证三段输出。',
   'commit-message':
-    '你是一位电力地理行业的软件开发工程师。请根据 Git diff 生成简洁规范的 commit message，包含一行标题和必要的正文说明。',
-  'api-debug':
-    '你是一位电力地理行业的软件开发工程师。请根据 API 请求和响应错误，用中文给出排查步骤、可能原因和下一步建议。'
+    '你是一位资深软件开发工程师。请根据 Git diff 生成简洁规范的 commit message，包含一行标题和必要的正文说明。',
+  'api-debug': '你是一位资深软件开发工程师。请根据 API 请求和响应错误，用中文给出排查步骤、可能原因和下一步建议。'
 }
 
 const activeStreams = new Map<string, AbortController>()
@@ -212,7 +210,7 @@ export async function handleAiTestConnection(): Promise<AiConnectionResponse> {
     const response = await client.chat.completions.create({
       model: config.model,
       messages: [
-        { role: 'system', content: '你是电力地理行业的软件开发工程师。请用中文简短回答。' },
+        { role: 'system', content: '你是资深软件开发工程师。请用中文简短回答。' },
         { role: 'user', content: '请回复：模型连接正常。' }
       ],
       temperature: 0

@@ -7,7 +7,11 @@ import type {
 } from '../../../src/shared/ipc.js'
 
 function readMetadata(parsed: unknown, output: string): JsonMetadata {
-  const rootType = Array.isArray(parsed) ? 'array' : parsed !== null && typeof parsed === 'object' ? 'object' : 'primitive'
+  const rootType = Array.isArray(parsed)
+    ? 'array'
+    : parsed !== null && typeof parsed === 'object'
+      ? 'object'
+      : 'primitive'
   const topLevelKeys =
     rootType === 'array'
       ? (parsed as unknown[]).length

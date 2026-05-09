@@ -85,7 +85,10 @@ export function readDatabaseFileInfo(db: Database): DatabaseInfo {
     exists,
     sizeBytes: stat?.size ?? 0,
     updatedAt: stat?.mtime.toISOString() ?? null,
-    schemaVersion: tableCount(db, 'meta') >= 0 ? Number(readOne<{ value: string }>(db, 'SELECT value FROM meta WHERE key = ?', ['schema_version'])?.value || 1) : 1,
+    schemaVersion:
+      tableCount(db, 'meta') >= 0
+        ? Number(readOne<{ value: string }>(db, 'SELECT value FROM meta WHERE key = ?', ['schema_version'])?.value || 1)
+        : 1,
     tables
   }
 }

@@ -1,6 +1,6 @@
 import type { Database } from 'sql.js'
 
-export const currentSchemaVersion = 4
+export const currentSchemaVersion = 7
 
 export function initializeSchema(db: Database): void {
   db.run(`
@@ -10,9 +10,11 @@ export function initializeSchema(db: Database): void {
     );
 
     CREATE TABLE IF NOT EXISTS api_env_vars (
-      key TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL DEFAULT '',
+      key TEXT NOT NULL,
       value TEXT NOT NULL,
-      sort_order INTEGER NOT NULL DEFAULT 0
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (project_id, key)
     );
 
     CREATE TABLE IF NOT EXISTS api_history (
@@ -31,6 +33,10 @@ export function initializeSchema(db: Database): void {
       headers TEXT NOT NULL,
       body TEXT NOT NULL,
       project_id TEXT,
+      group_name TEXT,
+      source_type TEXT,
+      source_path TEXT,
+      confidence INTEGER,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -42,6 +48,7 @@ export function initializeSchema(db: Database): void {
       prompt TEXT NOT NULL,
       output TEXT NOT NULL,
       model TEXT NOT NULL,
+      is_favorite INTEGER NOT NULL DEFAULT 0,
       project_id TEXT,
       created_at TEXT NOT NULL
     );

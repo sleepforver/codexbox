@@ -35,9 +35,7 @@ export interface JsonQueryRequest {
   path: string
 }
 
-export type JsonQueryResponse =
-  | { ok: true; output: string; matched: boolean }
-  | { ok: false; error: string }
+export type JsonQueryResponse = { ok: true; output: string; matched: boolean } | { ok: false; error: string }
 
 export interface ApiSendRequest {
   method: ApiMethod
@@ -85,6 +83,10 @@ export interface ApiSavedRequest {
   headers: HeaderPair[]
   body: string
   projectId?: string
+  groupName?: string
+  sourceType?: 'spring-controller' | 'frontend-call' | 'openapi' | 'manual'
+  sourcePath?: string
+  confidence?: number
   createdAt: string
   updatedAt: string
 }
@@ -92,6 +94,39 @@ export interface ApiSavedRequest {
 export interface ApiToolState {
   envVars: EnvPair[]
   history: ApiHistoryItem[]
+}
+
+export interface ApiDiscoveryRequest {
+  projectId?: string
+  projectPath: string
+}
+
+export interface ApiDiscoveredRequest {
+  id: string
+  name: string
+  method: ApiMethod
+  url: string
+  headers: HeaderPair[]
+  body: string
+  groupName: string
+  sourceType: 'spring-controller' | 'frontend-call' | 'openapi'
+  sourcePath: string
+  confidence: number
+}
+
+export interface ApiDiscoveryGroup {
+  name: string
+  sourceType: ApiDiscoveredRequest['sourceType']
+  requests: ApiDiscoveredRequest[]
+}
+
+export interface ApiDiscoveryResponse {
+  ok: true
+  projectType: 'spring' | 'frontend' | 'mixed' | 'unknown'
+  scannedFiles: number
+  skippedFiles: number
+  groups: ApiDiscoveryGroup[]
+  warnings: string[]
 }
 
 export type GitCommand = 'status' | 'log' | 'diff' | 'file-diff'
@@ -159,9 +194,7 @@ export type GitActionResponse =
   | { ok: true; action: GitAction; path: string; output: string }
   | { ok: false; action: GitAction; path: string; output: string; error: string }
 
-export type GitCommitResponse =
-  | { ok: true; output: string }
-  | { ok: false; output: string; error: string }
+export type GitCommitResponse = { ok: true; output: string } | { ok: false; output: string; error: string }
 
 export type AiTaskType = 'explain-code' | 'generate-code' | 'git-summary' | 'commit-message' | 'api-debug'
 
@@ -172,6 +205,7 @@ export interface AiHistoryItem {
   prompt: string
   output: string
   model: string
+  isFavorite: boolean
   projectId?: string
   createdAt: string
 }
@@ -306,6 +340,24 @@ export interface DataTransferResponse {
   ok: true
   message: string
   count: number
+  details?: DataTransferDetail[]
+}
+
+export interface DataTransferDetail {
+  scope: string
+  action: 'imported' | 'skipped' | 'overwritten' | 'created'
+  message: string
+}
+
+export type ProjectPackageImportMode = 'overwrite' | 'skip' | 'new'
+
+export interface ProjectPackageImportPreview {
+  path: string
+  projectCount: number
+  aiHistoryCount: number
+  apiRequestCount: number
+  geoAnalysisHistoryCount: number
+  conflictProjectNames: string[]
 }
 
 export interface ProjectDataPackage {
@@ -364,6 +416,28 @@ export interface GeoAnalyzeHistoryItem {
   createdAt: string
 }
 
+export interface GeoSourceFileResponse {
+  path: string
+  source: string
+}
+
+export interface AiContextFileResponse {
+  path: string
+  content: string
+}
+
+export interface ProjectPromptTemplateDefault {
+  projectId: string
+  taskType: AiTaskType
+  templateId: string
+}
+
+export interface GeoReportExportRequest {
+  title: string
+  projectName?: string
+  result: Extract<GeoAnalyzeResponse, { ok: true }>
+}
+
 export interface DevtoolsApi {
   json: {
     transform(request: JsonTransformRequest): Promise<JsonTransformResponse>
@@ -371,11 +445,20 @@ export interface DevtoolsApi {
   }
   api: {
     send(request: ApiSendRequest): Promise<ApiSendResponse>
-    getState(): Promise<ApiToolState>
-    saveState(state: ApiToolState): Promise<ApiToolState>
+    getState(projectId?: string): Promise<ApiToolState>
+    saveState(state: ApiToolState, projectId?: string): Promise<ApiToolState>
     getSavedRequests(projectId?: string): Promise<ApiSavedRequest[]>
-    saveRequest(request: Omit<ApiSavedRequest, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<ApiSavedRequest[]>
+    saveRequest(
+      request: Omit<ApiSavedRequest, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+    ): Promise<ApiSavedRequest[]>
     deleteRequest(id: string): Promise<ApiSavedRequest[]>
+    discoverRequests(request: ApiDiscoveryRequest): Promise<ApiDiscoveryResponse>
+    loadOpenApiRequests(): Promise<ApiDiscoveryResponse | null>
+    importDiscoveredRequests(
+      projectId: string | undefined,
+      requests: ApiDiscoveredRequest[],
+      mode: 'skip' | 'overwrite'
+    ): Promise<ApiSavedRequest[]>
   }
   git: {
     run(request: GitCommandRequest): Promise<GitCommandResponse>
@@ -391,14 +474,18 @@ export interface DevtoolsApi {
     ): Promise<AiStreamStartResponse>
     cancelStream(requestId: string): Promise<void>
     testConnection(): Promise<AiConnectionResponse>
+    loadContextFile(): Promise<AiContextFileResponse | null>
     getHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]>
     saveHistory(request: AiHistorySaveRequest): Promise<AiHistoryItem[]>
     deleteHistory(id: string, taskType?: AiTaskType): Promise<AiHistoryItem[]>
     clearHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]>
+    toggleHistoryFavorite(id: string, favorite: boolean): Promise<AiHistoryItem[]>
     getPromptTemplates(taskType?: AiTaskType): Promise<AiPromptTemplate[]>
     savePromptTemplate(request: AiPromptTemplateSaveRequest): Promise<AiPromptTemplate[]>
     deletePromptTemplate(id: string, taskType?: AiTaskType): Promise<AiPromptTemplate[]>
     resetBuiltinPromptTemplates(taskType?: AiTaskType): Promise<AiPromptTemplate[]>
+    getProjectPromptDefault(projectId: string, taskType: AiTaskType): Promise<string>
+    setProjectPromptDefault(defaultValue: ProjectPromptTemplateDefault): Promise<string>
   }
   settings: {
     get(): Promise<AppSettings>
@@ -416,7 +503,8 @@ export interface DevtoolsApi {
     exportWorkspaceProjects(): Promise<DataTransferResponse | null>
     importWorkspaceProjects(): Promise<DataTransferResponse | null>
     exportProjectPackage(projectId: string): Promise<DataTransferResponse | null>
-    importProjectPackage(): Promise<DataTransferResponse | null>
+    previewProjectPackageImport(): Promise<ProjectPackageImportPreview | null>
+    importProjectPackage(path: string, mode: ProjectPackageImportMode): Promise<DataTransferResponse | null>
   }
   projects: {
     list(): Promise<WorkspaceProject[]>
@@ -426,6 +514,8 @@ export interface DevtoolsApi {
   }
   geo: {
     analyze(request: GeoAnalyzeRequest): Promise<GeoAnalyzeResponse>
+    loadSourceFile(): Promise<GeoSourceFileResponse | null>
+    exportReport(request: GeoReportExportRequest, format: 'json' | 'markdown'): Promise<DataTransferResponse | null>
     getHistory(projectId?: string): Promise<GeoAnalyzeHistoryItem[]>
     deleteHistory(id: string): Promise<GeoAnalyzeHistoryItem[]>
     clearHistory(projectId?: string): Promise<GeoAnalyzeHistoryItem[]>

@@ -4,9 +4,7 @@ import { readAppSettings } from './settings.js'
 
 function normalizeHeaders(headers: HeaderPair[]): Record<string, string> {
   return Object.fromEntries(
-    headers
-      .filter((header) => header.key.trim())
-      .map((header) => [header.key.trim(), header.value])
+    headers.filter((header) => header.key.trim()).map((header) => [header.key.trim(), header.value])
   )
 }
 
@@ -47,7 +45,9 @@ export async function handleApiSend(request: ApiSendRequest): Promise<ApiSendRes
     })
     const rawBody = await response.text()
     const contentType = response.headers.get('content-type') ?? ''
-    const formatted = settings.autoFormatJsonResponse ? formatBody(rawBody, contentType) : { body: rawBody, isJson: false }
+    const formatted = settings.autoFormatJsonResponse
+      ? formatBody(rawBody, contentType)
+      : { body: rawBody, isJson: false }
 
     return {
       ok: true,

@@ -29,6 +29,7 @@ import {
   getDatabaseInfoFromDb,
   getSetting,
   importAiHistoryToDb,
+  toggleAiHistoryFavoriteInDb,
   listWorkspaceProjectsFromDb,
   markWorkspaceProjectOpenedInDb,
   resetBuiltinPromptTemplatesInDb,
@@ -101,12 +102,12 @@ export async function updateAppSettings(update: AppSettingsUpdate): Promise<AppS
   return readAppSettings()
 }
 
-export function getApiToolState(): Promise<ApiToolState> {
-  return getApiToolStateFromDb()
+export function getApiToolState(projectId?: string): Promise<ApiToolState> {
+  return getApiToolStateFromDb(projectId)
 }
 
-export function saveApiToolState(state: ApiToolState): Promise<ApiToolState> {
-  return saveApiToolStateToDb(state)
+export function saveApiToolState(state: ApiToolState, projectId?: string): Promise<ApiToolState> {
+  return saveApiToolStateToDb(state, projectId)
 }
 
 export function getApiSavedRequests(projectId?: string): Promise<ApiSavedRequest[]> {
@@ -131,7 +132,10 @@ export function saveAiHistory(request: AiHistorySaveRequest): Promise<AiHistoryI
   return saveAiHistoryToDb(request)
 }
 
-export function importAiHistory(item: AiHistorySaveRequest & { id?: string; createdAt?: string }, projectId?: string): Promise<void> {
+export function importAiHistory(
+  item: AiHistorySaveRequest & { id?: string; createdAt?: string },
+  projectId?: string
+): Promise<void> {
   return importAiHistoryToDb(item, projectId)
 }
 
@@ -141,6 +145,10 @@ export function deleteAiHistory(id: string, taskType?: AiTaskType): Promise<AiHi
 
 export function clearAiHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]> {
   return clearAiHistoryFromDb(taskType, projectId)
+}
+
+export function toggleAiHistoryFavorite(id: string, favorite: boolean): Promise<AiHistoryItem[]> {
+  return toggleAiHistoryFavoriteInDb(id, favorite)
 }
 
 export function getAiPromptTemplates(taskType?: AiTaskType): Promise<AiPromptTemplate[]> {
@@ -157,6 +165,28 @@ export function deleteAiPromptTemplate(id: string, taskType?: AiTaskType): Promi
 
 export function resetBuiltinPromptTemplates(taskType?: AiTaskType): Promise<AiPromptTemplate[]> {
   return resetBuiltinPromptTemplatesInDb(taskType)
+}
+
+function projectPromptDefaultsKey(projectId: string): string {
+  return `projectPromptDefaults:${projectId}`
+}
+
+export async function getProjectPromptDefault(projectId: string, taskType: AiTaskType): Promise<string> {
+  if (!projectId) return ''
+  const defaults = await getSetting<Record<string, string>>(projectPromptDefaultsKey(projectId), {})
+  return defaults[taskType] ?? ''
+}
+
+export async function setProjectPromptDefault(
+  projectId: string,
+  taskType: AiTaskType,
+  templateId: string
+): Promise<string> {
+  if (!projectId) throw new Error('项目不能为空')
+  const defaults = await getSetting<Record<string, string>>(projectPromptDefaultsKey(projectId), {})
+  defaults[taskType] = templateId
+  await setSetting(projectPromptDefaultsKey(projectId), defaults)
+  return templateId
 }
 
 export function getDatabaseInfo(): Promise<DatabaseInfo> {

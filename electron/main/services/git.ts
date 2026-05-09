@@ -164,7 +164,8 @@ export async function handleGitAction(request: {
     return { ok: false, action: request.action, path: request.path, output: '', error: inputError }
   }
 
-  const args = request.action === 'stage-file' ? ['add', '--', request.path] : ['restore', '--staged', '--', request.path]
+  const args =
+    request.action === 'stage-file' ? ['add', '--', request.path] : ['restore', '--staged', '--', request.path]
 
   try {
     const output = await runGit(cwd, args)

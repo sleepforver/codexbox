@@ -40,9 +40,10 @@ export function seedDefaults(db: Database): void {
   if (getSettingRaw(db, 'apiTimeoutMs') === null) setSettingRaw(db, 'apiTimeoutMs', 30000)
   if (getSettingRaw(db, 'autoFormatJsonResponse') === null) setSettingRaw(db, 'autoFormatJsonResponse', true)
 
-  const count = readOne<{ count: number }>(db, 'SELECT COUNT(*) AS count FROM api_env_vars')
+  const count = readOne<{ count: number }>(db, "SELECT COUNT(*) AS count FROM api_env_vars WHERE project_id = ''")
   if (!count?.count) {
-    run(db, 'INSERT OR REPLACE INTO api_env_vars (key, value, sort_order) VALUES (?, ?, ?)', [
+    run(db, 'INSERT OR REPLACE INTO api_env_vars (project_id, key, value, sort_order) VALUES (?, ?, ?, ?)', [
+      '',
       'baseUrl',
       'https://httpbin.org',
       0
@@ -68,7 +69,8 @@ export function migrateLegacyJson(db: Database): void {
     if (legacy.openaiModel) setSettingRaw(db, 'openaiModel', legacy.openaiModel)
     if (legacy.defaultWorkspace !== undefined) setSettingRaw(db, 'defaultWorkspace', legacy.defaultWorkspace)
     if (legacy.apiTimeoutMs !== undefined) setSettingRaw(db, 'apiTimeoutMs', legacy.apiTimeoutMs)
-    if (legacy.autoFormatJsonResponse !== undefined) setSettingRaw(db, 'autoFormatJsonResponse', legacy.autoFormatJsonResponse)
+    if (legacy.autoFormatJsonResponse !== undefined)
+      setSettingRaw(db, 'autoFormatJsonResponse', legacy.autoFormatJsonResponse)
 
     if (legacy.apiState?.envVars?.length) saveApiEnvVars(db, legacy.apiState.envVars)
     if (legacy.apiState?.history?.length) saveApiHistory(db, legacy.apiState.history)
@@ -118,7 +120,10 @@ export function migrateSchema(db: Database): void {
       run(db, 'ALTER TABLE api_saved_requests ADD COLUMN project_id TEXT')
     }
     run(db, 'CREATE INDEX IF NOT EXISTS idx_ai_history_project ON ai_history (project_id, created_at DESC)')
-    run(db, 'CREATE INDEX IF NOT EXISTS idx_api_saved_requests_project ON api_saved_requests (project_id, updated_at DESC)')
+    run(
+      db,
+      'CREATE INDEX IF NOT EXISTS idx_api_saved_requests_project ON api_saved_requests (project_id, updated_at DESC)'
+    )
     setMeta(db, 'schema_version', '3')
   }
 
@@ -139,14 +144,82 @@ export function migrateSchema(db: Database): void {
         created_at TEXT NOT NULL
       )`
     )
-    run(db, 'CREATE INDEX IF NOT EXISTS idx_geo_analysis_project_created ON geo_analysis_history (project_id, created_at DESC)')
+    run(
+      db,
+      'CREATE INDEX IF NOT EXISTS idx_geo_analysis_project_created ON geo_analysis_history (project_id, created_at DESC)'
+    )
     setMeta(db, 'schema_version', '4')
   }
 
-  if (currentSchemaVersion > 4) setMeta(db, 'schema_version', String(currentSchemaVersion))
+  const versionAfterGeo = Number(getMeta(db, 'schema_version') || 4)
+
+  if (versionAfterGeo < 5) {
+    if (!columnExists(db, 'api_saved_requests', 'group_name')) {
+      run(db, 'ALTER TABLE api_saved_requests ADD COLUMN group_name TEXT')
+    }
+    if (!columnExists(db, 'api_saved_requests', 'source_type')) {
+      run(db, 'ALTER TABLE api_saved_requests ADD COLUMN source_type TEXT')
+    }
+    if (!columnExists(db, 'api_saved_requests', 'source_path')) {
+      run(db, 'ALTER TABLE api_saved_requests ADD COLUMN source_path TEXT')
+    }
+    if (!columnExists(db, 'api_saved_requests', 'confidence')) {
+      run(db, 'ALTER TABLE api_saved_requests ADD COLUMN confidence INTEGER')
+    }
+    run(
+      db,
+      'CREATE INDEX IF NOT EXISTS idx_api_saved_requests_group ON api_saved_requests (project_id, group_name, updated_at DESC)'
+    )
+    setMeta(db, 'schema_version', '5')
+  }
+
+  const versionAfterApiDiscovery = Number(getMeta(db, 'schema_version') || 5)
+
+  if (versionAfterApiDiscovery < 6) {
+    run(
+      db,
+      `CREATE TABLE IF NOT EXISTS api_env_vars_v2 (
+        project_id TEXT NOT NULL DEFAULT '',
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (project_id, key)
+      )`
+    )
+    if (columnExists(db, 'api_env_vars', 'project_id')) {
+      run(
+        db,
+        "INSERT OR REPLACE INTO api_env_vars_v2 (project_id, key, value, sort_order) SELECT COALESCE(project_id, ''), key, value, sort_order FROM api_env_vars"
+      )
+    } else {
+      run(
+        db,
+        "INSERT OR REPLACE INTO api_env_vars_v2 (project_id, key, value, sort_order) SELECT '', key, value, sort_order FROM api_env_vars"
+      )
+    }
+    run(db, 'DROP TABLE api_env_vars')
+    run(db, 'ALTER TABLE api_env_vars_v2 RENAME TO api_env_vars')
+    run(db, 'CREATE INDEX IF NOT EXISTS idx_api_env_vars_project ON api_env_vars (project_id, sort_order)')
+    setMeta(db, 'schema_version', '6')
+  }
+
+  const versionAfterProjectEnv = Number(getMeta(db, 'schema_version') || 6)
+
+  if (versionAfterProjectEnv < 7) {
+    if (!columnExists(db, 'ai_history', 'is_favorite')) {
+      run(db, 'ALTER TABLE ai_history ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0')
+    }
+    run(db, 'CREATE INDEX IF NOT EXISTS idx_ai_history_favorite ON ai_history (is_favorite, created_at DESC)')
+    setMeta(db, 'schema_version', '7')
+  }
+
+  if (currentSchemaVersion > 7) setMeta(db, 'schema_version', String(currentSchemaVersion))
 }
 
 function columnExists(db: Database, table: string, column: string): boolean {
   const safeTable = table.replace(/[^a-z_]/g, '')
-  return readOne<{ name: string }>(db, `SELECT name FROM pragma_table_info('${safeTable}') WHERE name = ?`, [column]) !== null
+  return (
+    readOne<{ name: string }>(db, `SELECT name FROM pragma_table_info('${safeTable}') WHERE name = ?`, [column]) !==
+    null
+  )
 }

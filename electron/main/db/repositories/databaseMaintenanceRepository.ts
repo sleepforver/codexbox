@@ -1,6 +1,10 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { DatabaseInfo, DatabaseMaintenanceCleanupRequest, DatabaseMaintenanceResponse } from '../../../../src/shared/ipc.js'
+import type {
+  DatabaseInfo,
+  DatabaseMaintenanceCleanupRequest,
+  DatabaseMaintenanceResponse
+} from '../../../../src/shared/ipc.js'
 import { backupDir, dbPath } from '../paths.js'
 import { closeDatabase, getDatabase, persist, readDatabaseFileInfo } from '../connection.js'
 import { run, transaction } from '../runtime.js'
@@ -43,7 +47,9 @@ export async function restoreDatabaseFromFile(sourcePath: string): Promise<Datab
   }
 }
 
-export async function cleanupDatabaseInDb(request: DatabaseMaintenanceCleanupRequest): Promise<DatabaseMaintenanceResponse> {
+export async function cleanupDatabaseInDb(
+  request: DatabaseMaintenanceCleanupRequest
+): Promise<DatabaseMaintenanceResponse> {
   const db = await getDatabase()
   transaction(db, () => {
     if (request.aiHistory) run(db, 'DELETE FROM ai_history')

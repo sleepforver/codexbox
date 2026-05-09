@@ -11,6 +11,7 @@ export {
   getAiHistoryFromDb,
   saveAiHistoryToDb,
   importAiHistoryToDb,
+  toggleAiHistoryFavoriteInDb,
   deleteAiHistoryFromDb,
   clearAiHistoryFromDb
 } from '../db/repositories/aiHistoryRepository.js'

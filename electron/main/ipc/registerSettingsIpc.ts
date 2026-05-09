@@ -2,11 +2,11 @@ import { dialog, ipcMain } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import type {
   AiHistoryItem,
-  AiPromptTemplate,
-  ApiSavedRequest,
   DataTransferResponse,
   GeoAnalyzeHistoryItem,
-  ProjectDataPackage
+  ProjectDataPackage,
+  ProjectPackageImportMode,
+  ProjectPackageImportPreview
 } from '../../../src/shared/ipc.js'
 import {
   backupDatabase,
@@ -33,26 +33,36 @@ import {
   projectPackageSchema,
   workspaceProjectSchema
 } from '../validation/schemas.js'
+import { withIpcError } from './ipcError.js'
 
 export function registerSettingsIpc(): void {
   ipcMain.handle('settings:get', () => readAppSettings())
-  ipcMain.handle('settings:update', (_event, update) => updateAppSettings(update))
+  ipcMain.handle('settings:update', (_event, update) => withIpcError('保存设置', () => updateAppSettings(update)))
   ipcMain.handle('settings:getDatabaseInfo', () => getDatabaseInfo())
-  ipcMain.handle('settings:backupDatabase', () => backupDatabase())
+  ipcMain.handle('settings:backupDatabase', () => withIpcError('备份数据库', () => backupDatabase()))
   ipcMain.handle('settings:restoreDatabase', async () => {
     const path = await chooseOpenPath([{ name: 'SQLite Database', extensions: ['db', 'sqlite', 'sqlite3'] }])
-    return path ? restoreDatabase(path) : null
+    return path ? withIpcError('恢复数据库', () => restoreDatabase(path)) : null
   })
-  ipcMain.handle('settings:cleanupDatabase', (_event, request) => cleanupDatabase(request))
+  ipcMain.handle('settings:cleanupDatabase', (_event, request) =>
+    withIpcError('清理数据库', () => cleanupDatabase(request))
+  )
   ipcMain.handle('settings:exportAiHistory', (_event, format) => exportAiHistory(format))
   ipcMain.handle('settings:exportPromptTemplates', () => exportPromptTemplates())
-  ipcMain.handle('settings:importPromptTemplates', () => importPromptTemplates())
+  ipcMain.handle('settings:importPromptTemplates', () =>
+    withIpcError('导入 Prompt 模板', () => importPromptTemplates())
+  )
   ipcMain.handle('settings:exportApiRequests', () => exportApiRequests())
-  ipcMain.handle('settings:importApiRequests', () => importApiRequests())
+  ipcMain.handle('settings:importApiRequests', () => withIpcError('导入 API 请求集合', () => importApiRequests()))
   ipcMain.handle('settings:exportWorkspaceProjects', () => exportWorkspaceProjects())
-  ipcMain.handle('settings:importWorkspaceProjects', () => importWorkspaceProjects())
+  ipcMain.handle('settings:importWorkspaceProjects', () =>
+    withIpcError('导入项目工作区', () => importWorkspaceProjects())
+  )
   ipcMain.handle('settings:exportProjectPackage', (_event, projectId) => exportProjectPackage(projectId))
-  ipcMain.handle('settings:importProjectPackage', () => importProjectPackage())
+  ipcMain.handle('settings:previewProjectPackageImport', () => previewProjectPackageImport())
+  ipcMain.handle('settings:importProjectPackage', (_event, path, mode) =>
+    withIpcError('导入项目数据包', () => importProjectPackage(path, mode))
+  )
   ipcMain.handle('settings:selectDirectory', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return result.canceled ? null : result.filePaths[0]
@@ -112,7 +122,11 @@ async function exportAiHistory(format: 'json' | 'markdown'): Promise<DataTransfe
     format === 'markdown' ? { name: 'Markdown', extensions: ['md'] } : { name: 'JSON', extensions: ['json'] }
   ])
   if (!path) return null
-  writeFileSync(path, format === 'markdown' ? formatAiHistoryMarkdown(items) : exportEnvelope('ai-history', items), 'utf8')
+  writeFileSync(
+    path,
+    format === 'markdown' ? formatAiHistoryMarkdown(items) : exportEnvelope('ai-history', items),
+    'utf8'
+  )
   return { ok: true, message: `AI 历史已导出：${path}`, count: items.length }
 }
 
@@ -225,27 +239,71 @@ async function exportProjectPackage(projectId: string): Promise<DataTransferResp
   }
 }
 
-async function importProjectPackage(): Promise<DataTransferResponse | null> {
-  const path = await chooseOpenPath([{ name: 'JSON', extensions: ['json'] }])
-  if (!path) return null
+function parseProjectPackages(path: string): ReturnType<typeof projectPackageSchema.parse>[] {
   const packages = parseImportItems(path, 'project-package').map((item) => projectPackageSchema.parse(item))
   assertImportItemsNotEmpty(packages, '项目数据包')
+  return packages
+}
+
+async function previewProjectPackageImport(): Promise<ProjectPackageImportPreview | null> {
+  const path = await chooseOpenPath([{ name: 'JSON', extensions: ['json'] }])
+  if (!path) return null
+  const packages = parseProjectPackages(path)
+  const existingIds = new Set((await listWorkspaceProjects()).map((item) => item.id))
+  return {
+    path,
+    projectCount: packages.length,
+    aiHistoryCount: packages.reduce((sum, item) => sum + item.aiHistory.length, 0),
+    apiRequestCount: packages.reduce((sum, item) => sum + item.apiRequests.length, 0),
+    geoAnalysisHistoryCount: packages.reduce((sum, item) => sum + item.geoAnalysisHistory.length, 0),
+    conflictProjectNames: packages.filter((item) => existingIds.has(item.project.id)).map((item) => item.project.name)
+  }
+}
+
+async function importProjectPackage(
+  path: string,
+  mode: ProjectPackageImportMode = 'overwrite'
+): Promise<DataTransferResponse | null> {
+  if (!path) throw new Error('请先预览并选择项目数据包')
+  const packages = parseProjectPackages(path)
+  const existingIds = new Set((await listWorkspaceProjects()).map((item) => item.id))
   let importedCount = 0
+  let skippedCount = 0
+  const details: DataTransferResponse['details'] = []
 
   for (const packageData of packages) {
     const project = packageData.project
-    await saveWorkspaceProject({
-      id: project.id,
-      name: project.name,
+    const hasConflict = existingIds.has(project.id)
+    if (hasConflict && mode === 'skip') {
+      skippedCount += 1
+      details.push({ scope: project.name, action: 'skipped', message: '项目 ID 冲突，已按策略跳过' })
+      continue
+    }
+
+    const targetProjectId = hasConflict && mode === 'new' ? undefined : project.id
+    const targetProjectName = hasConflict && mode === 'new' ? `${project.name}（导入）` : project.name
+    const projects = await saveWorkspaceProject({
+      id: targetProjectId,
+      name: targetProjectName,
       path: project.path,
       description: project.description,
       tags: project.tags
     })
+    const savedProject = targetProjectId
+      ? projects.find((item) => item.id === targetProjectId)
+      : projects.find((item) => item.name === targetProjectName)
+    const projectId = savedProject?.id ?? project.id
     importedCount += 1
+    details.push({
+      scope: targetProjectName,
+      action: hasConflict ? (mode === 'new' ? 'created' : 'overwritten') : 'imported',
+      message: `项目已${hasConflict ? (mode === 'new' ? '另存' : '覆盖') : '导入'}`
+    })
 
     for (const item of packageData.aiHistory) {
-      await importAiHistory({ ...item, projectId: project.id }, project.id)
+      await importAiHistory({ ...item, id: mode === 'new' ? undefined : item.id, projectId }, projectId)
       importedCount += 1
+      details.push({ scope: targetProjectName, action: 'imported', message: `AI 历史：${item.title}` })
     }
 
     for (const item of packageData.apiRequests) {
@@ -256,16 +314,23 @@ async function importProjectPackage(): Promise<DataTransferResponse | null> {
         url: item.url,
         headers: item.headers,
         body: item.body,
-        projectId: project.id
+        projectId
       })
       importedCount += 1
+      details.push({ scope: targetProjectName, action: 'imported', message: `API 请求：${item.name}` })
     }
 
     for (const item of packageData.geoAnalysisHistory as GeoAnalyzeHistoryItem[]) {
-      await importGeoAnalysisHistory({ ...item, projectId: project.id }, project.id)
+      await importGeoAnalysisHistory({ ...item, projectId }, projectId)
       importedCount += 1
+      details.push({ scope: targetProjectName, action: 'imported', message: `地理体检：${item.title}` })
     }
   }
 
-  return { ok: true, message: `项目数据包已导入：${packages.length} 个项目`, count: importedCount }
+  return {
+    ok: true,
+    message: `项目数据包已导入：${packages.length - skippedCount} 个项目，跳过 ${skippedCount} 个`,
+    count: importedCount,
+    details
+  }
 }

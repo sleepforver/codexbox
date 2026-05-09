@@ -8,15 +8,14 @@ export const builtinPromptTemplates: Array<
     taskType: 'explain-code',
     name: '代码风险审查',
     content:
-      '请从电力地理行业软件开发角度审查以下代码：\n\n{{code}}\n\n请按“意图概述、关键流程、潜在风险、改进建议、建议测试”五段输出。',
+      '请从通用软件工程角度审查以下代码：\n\n{{code}}\n\n请按“意图概述、关键流程、潜在风险、改进建议、建议测试”五段输出。',
     variables: ['code']
   },
   {
     id: 'builtin-explain-geojson',
     taskType: 'explain-code',
     name: 'GeoJSON 数据解释',
-    content:
-      '请解释以下 GeoJSON 或地理数据处理代码的作用，并说明它对线路、杆塔、变电站等电力地理数据的适用性：\n\n{{code}}',
+    content: '请解释以下 GeoJSON 或地理数据处理代码的作用，并说明数据结构、坐标处理和质量校验风险：\n\n{{code}}',
     variables: ['code']
   },
   {
@@ -28,27 +27,26 @@ export const builtinPromptTemplates: Array<
     variables: ['requiredFields']
   },
   {
-    id: 'builtin-generate-line-ledger-checker',
+    id: 'builtin-generate-dataset-checker',
     taskType: 'generate-code',
-    name: '线路台账字段检查',
+    name: '通用数据字段检查',
     content:
-      '请生成 TypeScript 代码，校验电力线路台账记录。字段包括 lineName、voltage、towerId、stationName、geometry。要求输出缺失字段、重复杆塔编号和坐标异常。',
+      '请生成 TypeScript 代码，校验一组业务数据记录。字段包括 featureId、datasetName、category、geometry。要求输出缺失字段、重复标识和坐标异常。',
     variables: []
   },
   {
-    id: 'builtin-api-debug-powergis',
+    id: 'builtin-api-debug-general',
     taskType: 'api-debug',
-    name: '电力地理 API 报文排错',
+    name: 'API 报文排错',
     content:
-      '请分析以下 API 请求和响应，重点检查鉴权、坐标字段、分页参数、服务端错误和电力地理业务字段是否合理：\n\n{{requestAndResponse}}',
+      '请分析以下 API 请求和响应，重点检查鉴权、参数、分页、服务端错误和业务字段是否合理：\n\n{{requestAndResponse}}',
     variables: ['requestAndResponse']
   },
   {
-    id: 'builtin-git-summary-powergis',
+    id: 'builtin-git-summary-general',
     taskType: 'git-summary',
-    name: '电力地理变更说明',
-    content:
-      '请根据以下 Git diff 生成中文变更说明，按“功能变化、影响范围、风险点、建议验证”输出，并关注电力地理数据处理逻辑：\n\n{{diff}}',
+    name: '通用变更说明',
+    content: '请根据以下 Git diff 生成中文变更说明，按“功能变化、影响范围、风险点、建议验证”输出：\n\n{{diff}}',
     variables: ['diff']
   },
   {

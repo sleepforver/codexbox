@@ -29,7 +29,11 @@ export const apiSavedRequestInputSchema = z.object({
   url: z.string(),
   headers: z.array(headerPairSchema),
   body: z.string(),
-  projectId: z.string().optional()
+  projectId: z.string().optional(),
+  groupName: z.string().optional(),
+  sourceType: z.enum(['spring-controller', 'frontend-call', 'openapi', 'manual']).optional(),
+  sourcePath: z.string().optional(),
+  confidence: z.number().optional()
 })
 
 export const aiHistorySaveSchema = z.object({
@@ -110,8 +114,16 @@ export const geoAnalyzeHistoryItemSchema = z.object({
 
 export const projectPackageSchema = z.object({
   project: workspaceProjectSchema,
-  aiHistory: z.array(aiHistorySaveSchema.extend({ id: z.string().optional(), createdAt: z.string().optional() })),
-  apiRequests: z.array(apiSavedRequestInputSchema.extend({ createdAt: z.string().optional(), updatedAt: z.string().optional() })),
+  aiHistory: z.array(
+    aiHistorySaveSchema.extend({
+      id: z.string().optional(),
+      createdAt: z.string().optional(),
+      isFavorite: z.boolean().optional()
+    })
+  ),
+  apiRequests: z.array(
+    apiSavedRequestInputSchema.extend({ createdAt: z.string().optional(), updatedAt: z.string().optional() })
+  ),
   geoAnalysisHistory: z.array(geoAnalyzeHistoryItemSchema),
   exportedAt: z.string().optional()
 })
