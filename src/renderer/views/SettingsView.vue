@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { FolderOpen, Plus, RefreshCw, Save, Trash2 } from 'lucide-vue-next'
 import type {
   AiConnectionResponse,
+  AiProvider,
   AiPromptTemplate,
   AiTaskType,
   AppSettings,
@@ -25,7 +26,44 @@ const taskOptions: Array<{ value: AiTaskType; label: string }> = [
   { value: 'commit-message', label: 'Commit Message' }
 ]
 
+const providerOptions: Array<{ value: AiProvider; label: string; baseURL: string; model: string; models: string[] }> = [
+  {
+    value: 'siliconflow',
+    label: 'SiliconFlow',
+    baseURL: 'https://api.siliconflow.com/v1',
+    model: 'Qwen/Qwen2.5-7B-Instruct',
+    models: [
+      'Qwen/Qwen2.5-7B-Instruct',
+      'Qwen/Qwen2.5-Coder-7B-Instruct',
+      'Qwen/Qwen2.5-14B-Instruct',
+      'deepseek-ai/DeepSeek-V3'
+    ]
+  },
+  {
+    value: 'openai',
+    label: 'OpenAI',
+    baseURL: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1']
+  },
+  {
+    value: 'deepseek',
+    label: 'DeepSeek',
+    baseURL: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+    models: ['deepseek-chat', 'deepseek-reasoner']
+  },
+  {
+    value: 'custom',
+    label: 'OpenAI 兼容',
+    baseURL: 'https://api.example.com/v1',
+    model: 'custom-model',
+    models: ['custom-model']
+  }
+]
+
 const settings = ref<AppSettings>({
+  aiProvider: 'siliconflow',
   openaiModel: 'Qwen/Qwen2.5-7B-Instruct',
   openaiBaseURL: 'https://api.siliconflow.com/v1',
   apiKeySource: 'none',
@@ -64,11 +102,20 @@ const templatePreview = computed(() => renderPromptTemplate(templateDraft.value,
 const selectedTaskLabel = computed(
   () => taskOptions.find((item) => item.value === selectedTaskType.value)?.label ?? selectedTaskType.value
 )
+const selectedProvider = computed(
+  () => providerOptions.find((item) => item.value === settings.value.aiProvider) ?? providerOptions[0]
+)
+const currentProviderModels = computed(() => selectedProvider.value.models)
 const apiKeySourceLabel = computed(() => {
   if (settings.value.apiKeySource === 'env') return '.env / 环境变量'
-  if (settings.value.apiKeySource === 'settings') return '设置页 SQLite 存储'
   return '未读取到'
 })
+
+function applyProviderDefaults(): void {
+  settings.value.openaiBaseURL = selectedProvider.value.baseURL
+  settings.value.openaiModel = selectedProvider.value.model
+  connectionResult.value = null
+}
 const databaseSizeLabel = computed(() => {
   const size = databaseInfo.value?.sizeBytes ?? 0
   if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(2)} MB`
@@ -79,7 +126,7 @@ const databaseSizeLabel = computed(() => {
 async function loadSettings(): Promise<void> {
   try {
     settings.value = await devtoolsApi.settings.get()
-    status.value = settings.value.hasOpenaiApiKey ? '硅基流动 API Key 已配置' : '尚未配置硅基流动 API Key'
+    status.value = settings.value.hasOpenaiApiKey ? '模型平台 API Key 已配置' : '尚未配置模型平台 API Key'
     statusType.value = settings.value.hasOpenaiApiKey ? 'success' : 'error'
   } catch (error) {
     status.value = error instanceof Error ? error.message : '读取设置失败'
@@ -112,8 +159,10 @@ async function saveSettings(): Promise<void> {
   statusType.value = 'idle'
   try {
     settings.value = await devtoolsApi.settings.update({
+      aiProvider: settings.value.aiProvider,
       openaiApiKey: apiKey.value || undefined,
       openaiModel: settings.value.openaiModel,
+      openaiBaseURL: settings.value.openaiBaseURL,
       defaultWorkspace: settings.value.defaultWorkspace,
       apiTimeoutMs: Number(settings.value.apiTimeoutMs),
       autoFormatJsonResponse: settings.value.autoFormatJsonResponse
@@ -441,7 +490,7 @@ onMounted(async () => {
     <header class="tool-header">
       <div class="tool-title">
         <h2>设置</h2>
-        <p>配置硅基流动模型、本地工作目录和 API 请求超时。</p>
+        <p>配置模型平台、本地工作目录和 API 请求超时。</p>
       </div>
       <button class="button" type="button" @click="saveSettings">
         <Save :size="16" />
@@ -480,9 +529,18 @@ onMounted(async () => {
       <div v-show="activeSettingsTab === 'base'" class="split-grid settings-tab-panel">
         <div class="section">
           <div class="field">
-            <label for="siliconflow-key">硅基流动 API Key</label>
+            <label for="ai-provider">模型平台</label>
+            <select id="ai-provider" v-model="settings.aiProvider" class="select" @change="applyProviderDefaults">
+              <option v-for="provider in providerOptions" :key="provider.value" :value="provider.value">
+                {{ provider.label }}
+              </option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="provider-key">{{ selectedProvider.label }} API Key</label>
             <input
-              id="siliconflow-key"
+              id="provider-key"
               v-model="apiKey"
               class="input"
               type="password"
@@ -492,12 +550,20 @@ onMounted(async () => {
 
           <div class="field">
             <label for="model">模型</label>
-            <select id="model" v-model="settings.openaiModel" class="select">
-              <option value="Qwen/Qwen2.5-7B-Instruct">Qwen/Qwen2.5-7B-Instruct</option>
-              <option value="Qwen/Qwen2.5-Coder-7B-Instruct">Qwen/Qwen2.5-Coder-7B-Instruct</option>
-              <option value="Qwen/Qwen2.5-14B-Instruct">Qwen/Qwen2.5-14B-Instruct</option>
-              <option value="deepseek-ai/DeepSeek-V3">deepseek-ai/DeepSeek-V3</option>
-            </select>
+            <input id="model" v-model="settings.openaiModel" class="input" list="ai-model-options" />
+            <datalist id="ai-model-options">
+              <option v-for="model in currentProviderModels" :key="model" :value="model" />
+            </datalist>
+          </div>
+
+          <div class="field">
+            <label for="base-url">Base URL</label>
+            <input
+              id="base-url"
+              v-model="settings.openaiBaseURL"
+              class="input"
+              placeholder="https://api.example.com/v1"
+            />
           </div>
 
           <div class="field">
@@ -531,7 +597,8 @@ onMounted(async () => {
           </label>
 
           <div class="code-box">
-            Provider: SiliconFlow Base URL: {{ settings.openaiBaseURL }} Model: {{ settings.openaiModel }} API Key:
+            Provider: {{ selectedProvider.label }} Base URL: {{ settings.openaiBaseURL }} Model:
+            {{ settings.openaiModel }} API Key:
             {{ settings.hasOpenaiApiKey ? `已读取（${apiKeySourceLabel}）` : '未读取到' }} Timeout:
             {{ settings.apiTimeoutMs }}ms
           </div>

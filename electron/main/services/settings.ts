@@ -3,6 +3,7 @@ import type {
   AiHistorySaveRequest,
   AiPromptTemplate,
   AiPromptTemplateSaveRequest,
+  AiProvider,
   AiTaskType,
   ApiSavedRequest,
   ApiToolState,
@@ -14,6 +15,8 @@ import type {
   WorkspaceProject,
   WorkspaceProjectSaveRequest
 } from '../../../src/shared/ipc.js'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import {
   backupDatabaseToFile,
   clearAiHistoryFromDb,
@@ -42,25 +45,104 @@ import {
   setSetting
 } from './database.js'
 
-const defaultModel = 'Qwen/Qwen2.5-7B-Instruct'
+interface AiProviderConfig {
+  baseURL: string
+  model: string
+  apiKeyEnv: string
+  baseUrlEnv: string
+}
+
+const providerConfigs: Record<AiProvider, AiProviderConfig> = {
+  siliconflow: {
+    baseURL: 'https://api.siliconflow.com/v1',
+    model: 'Qwen/Qwen2.5-7B-Instruct',
+    apiKeyEnv: 'SILICONFLOW_API_KEY',
+    baseUrlEnv: 'SILICONFLOW_BASE_URL'
+  },
+  openai: {
+    baseURL: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    apiKeyEnv: 'OPENAI_API_KEY',
+    baseUrlEnv: 'OPENAI_BASE_URL'
+  },
+  deepseek: {
+    baseURL: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+    apiKeyEnv: 'DEEPSEEK_API_KEY',
+    baseUrlEnv: 'DEEPSEEK_BASE_URL'
+  },
+  custom: {
+    baseURL: 'https://api.example.com/v1',
+    model: 'custom-model',
+    apiKeyEnv: 'OPENAI_COMPATIBLE_API_KEY',
+    baseUrlEnv: 'OPENAI_COMPATIBLE_BASE_URL'
+  }
+}
+
+const defaultProvider: AiProvider = 'siliconflow'
+
+function normalizeAiProvider(value: unknown): AiProvider {
+  return value === 'openai' || value === 'deepseek' || value === 'custom' || value === 'siliconflow'
+    ? value
+    : defaultProvider
+}
+
+function readEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim()
+  return value || undefined
+}
+
+function envFilePath(): string {
+  return resolve(process.cwd(), '.env')
+}
+
+function writeEnvValues(updates: Record<string, string>): void {
+  const path = envFilePath()
+  const source = existsSync(path) ? readFileSync(path, 'utf8') : ''
+  const lines = source ? source.split(/\r?\n/) : []
+  const remaining = new Map(Object.entries(updates))
+  const nextLines = lines.map((line) => {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/)
+    if (!match) return line
+    const key = match[1]
+    const value = remaining.get(key)
+    if (value === undefined) return line
+    remaining.delete(key)
+    return `${key}=${value}`
+  })
+
+  for (const [key, value] of remaining) {
+    nextLines.push(`${key}=${value}`)
+  }
+
+  writeFileSync(path, `${nextLines.join('\n').replace(/\n+$/, '')}\n`, 'utf8')
+  for (const [key, value] of Object.entries(updates)) {
+    process.env[key] = value
+  }
+}
 
 export async function readAppSettings(): Promise<AppSettings> {
-  const [storedKey, openaiModel, defaultWorkspace, apiTimeoutMs, autoFormatJsonResponse] = await Promise.all([
-    getSetting<string | undefined>('openaiApiKey', undefined),
-    getSetting('openaiModel', defaultModel),
-    getSetting('defaultWorkspace', ''),
-    getSetting('apiTimeoutMs', 30000),
-    getSetting('autoFormatJsonResponse', true)
-  ])
-  const envKey = process.env.SILICONFLOW_API_KEY
-  const envBaseURL = process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.com/v1'
-  const apiKeySource = envKey ? 'env' : storedKey ? 'settings' : 'none'
+  const [storedProvider, storedModel, storedBaseURL, defaultWorkspace, apiTimeoutMs, autoFormatJsonResponse] =
+    await Promise.all([
+      getSetting<AiProvider | undefined>('aiProvider', undefined),
+      getSetting<string | undefined>('openaiModel', undefined),
+      getSetting<string | undefined>('openaiBaseURL', undefined),
+      getSetting('defaultWorkspace', ''),
+      getSetting('apiTimeoutMs', 30000),
+      getSetting('autoFormatJsonResponse', true)
+    ])
+  const aiProvider = normalizeAiProvider(storedProvider)
+  const providerConfig = providerConfigs[aiProvider]
+  const envKey = readEnv(providerConfig.apiKeyEnv)
+  const envBaseURL = readEnv(providerConfig.baseUrlEnv)
+  const apiKeySource = envKey ? 'env' : 'none'
 
   return {
-    openaiModel: process.env.SILICONFLOW_MODEL || openaiModel,
-    openaiBaseURL: envBaseURL,
+    aiProvider,
+    openaiModel: storedModel || providerConfig.model,
+    openaiBaseURL: storedBaseURL || envBaseURL || providerConfig.baseURL,
     apiKeySource,
-    hasOpenaiApiKey: Boolean(envKey || storedKey),
+    hasOpenaiApiKey: Boolean(envKey),
     defaultWorkspace,
     apiTimeoutMs,
     autoFormatJsonResponse
@@ -68,31 +150,48 @@ export async function readAppSettings(): Promise<AppSettings> {
 }
 
 export async function readAiRuntimeConfig(): Promise<{
+  provider: AiProvider
   apiKey?: string
-  apiKeySource: 'env' | 'settings' | 'none'
+  apiKeySource: 'env' | 'none'
   model: string
   baseURL: string
   timeoutMs: number
 }> {
-  const [storedKey, storedModel, apiTimeoutMs] = await Promise.all([
-    getSetting<string | undefined>('openaiApiKey', undefined),
-    getSetting('openaiModel', defaultModel),
+  const [storedProvider, storedModel, storedBaseURL, apiTimeoutMs] = await Promise.all([
+    getSetting<AiProvider | undefined>('aiProvider', undefined),
+    getSetting<string | undefined>('openaiModel', undefined),
+    getSetting<string | undefined>('openaiBaseURL', undefined),
     getSetting('apiTimeoutMs', 30000)
   ])
-  const envKey = process.env.SILICONFLOW_API_KEY
+  const aiProvider = normalizeAiProvider(storedProvider)
+  const providerConfig = providerConfigs[aiProvider]
+  const envKey = readEnv(providerConfig.apiKeyEnv)
+  const envBaseURL = readEnv(providerConfig.baseUrlEnv)
 
   return {
-    apiKey: envKey || storedKey,
-    apiKeySource: envKey ? 'env' : storedKey ? 'settings' : 'none',
-    model: process.env.SILICONFLOW_MODEL || storedModel || defaultModel,
-    baseURL: process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.com/v1',
+    provider: aiProvider,
+    apiKey: envKey,
+    apiKeySource: envKey ? 'env' : 'none',
+    model: storedModel || providerConfig.model,
+    baseURL: storedBaseURL || envBaseURL || providerConfig.baseURL,
     timeoutMs: Number(apiTimeoutMs) || 30000
   }
 }
 
 export async function updateAppSettings(update: AppSettingsUpdate): Promise<AppSettings> {
-  if (update.openaiApiKey !== undefined) await setSetting('openaiApiKey', update.openaiApiKey)
-  if (update.openaiModel !== undefined) await setSetting('openaiModel', update.openaiModel)
+  const activeProvider = normalizeAiProvider(
+    update.aiProvider ?? (await getSetting<AiProvider | undefined>('aiProvider', undefined))
+  )
+  const providerConfig = providerConfigs[activeProvider]
+  if (update.aiProvider !== undefined) await setSetting('aiProvider', update.aiProvider)
+  if (update.openaiApiKey !== undefined) {
+    writeEnvValues({ [providerConfig.apiKeyEnv]: update.openaiApiKey.trim() })
+  }
+  if (update.openaiModel !== undefined) {
+    const model = update.openaiModel.trim() || providerConfigs[activeProvider].model
+    await setSetting('openaiModel', model)
+  }
+  if (update.openaiBaseURL !== undefined) await setSetting('openaiBaseURL', update.openaiBaseURL)
   if (update.defaultWorkspace !== undefined) await setSetting('defaultWorkspace', update.defaultWorkspace)
   if (update.apiTimeoutMs !== undefined) await setSetting('apiTimeoutMs', update.apiTimeoutMs)
   if (update.autoFormatJsonResponse !== undefined) {

@@ -25,7 +25,7 @@ const templateDraft = ref('')
 const templateVariables = ref<Record<string, string>>({ code: code.value })
 const historySearch = ref('')
 const selectedHistoryItem = ref<AiHistoryItem | null>(null)
-const config = ref<AiConfigResponse>({ hasApiKey: false, model: 'Qwen/Qwen2.5-7B-Instruct' })
+const config = ref<AiConfigResponse>({ hasApiKey: false, provider: 'siliconflow', model: 'Qwen/Qwen2.5-7B-Instruct' })
 const renderedOutput = computed(() => renderMarkdown(output.value))
 const renderedHistoryOutput = computed(() => renderMarkdown(selectedHistoryItem.value?.output ?? ''))
 const selectedTemplate = computed(() => templates.value.find((item) => item.id === selectedTemplateId.value))
@@ -40,7 +40,7 @@ const filteredHistory = computed(() => {
 
 async function loadConfig(): Promise<void> {
   config.value = await devtoolsApi.ai.getConfig()
-  status.value = config.value.hasApiKey ? `硅基流动模型 ${config.value.model} 已就绪` : '未配置 SILICONFLOW_API_KEY'
+  status.value = config.value.hasApiKey ? `模型 ${config.value.model} 已就绪` : '未配置当前模型平台 API Key'
   statusType.value = config.value.hasApiKey ? 'success' : 'error'
 }
 
@@ -360,7 +360,7 @@ watch(selectedProjectId, () => {
             v-html="renderedOutput"
           ></div>
           <div v-else class="empty-state ai-pane-fixed">
-            {{ config.hasApiKey ? '解释结果会显示在这里' : '请先在 .env 或设置页配置硅基流动 API Key' }}
+            {{ config.hasApiKey ? '解释结果会显示在这里' : '请先在 .env 或设置页配置模型平台 API Key' }}
           </div>
         </div>
       </div>

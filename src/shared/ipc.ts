@@ -197,6 +197,7 @@ export type GitActionResponse =
 export type GitCommitResponse = { ok: true; output: string } | { ok: false; output: string; error: string }
 
 export type AiTaskType = 'explain-code' | 'generate-code' | 'git-summary' | 'commit-message' | 'api-debug'
+export type AiProvider = 'siliconflow' | 'openai' | 'deepseek' | 'custom'
 
 export interface AiHistoryItem {
   id: string
@@ -253,6 +254,7 @@ export type AiGenerateTextResponse =
 
 export interface AiConfigResponse {
   hasApiKey: boolean
+  provider: AiProvider
   model: string
 }
 
@@ -271,9 +273,10 @@ export interface AiStreamStartResponse {
 }
 
 export interface AppSettings {
+  aiProvider: AiProvider
   openaiModel: string
   openaiBaseURL: string
-  apiKeySource: 'env' | 'settings' | 'none'
+  apiKeySource: 'env' | 'none'
   hasOpenaiApiKey: boolean
   defaultWorkspace: string
   apiTimeoutMs: number
@@ -281,8 +284,10 @@ export interface AppSettings {
 }
 
 export interface AppSettingsUpdate {
+  aiProvider?: AiProvider
   openaiApiKey?: string
   openaiModel?: string
+  openaiBaseURL?: string
   defaultWorkspace?: string
   apiTimeoutMs?: number
   autoFormatJsonResponse?: boolean

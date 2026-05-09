@@ -45,38 +45,38 @@ function formatAiError(error: unknown): string {
   const errorText = `${status ?? ''} ${code} ${message}`.trim()
 
   if (status === 401 || /401|unauthorized|invalid api key/i.test(errorText)) {
-    return 'SiliconFlow 鉴权失败：请确认设置页保存的是有效的 SILICONFLOW_API_KEY，并且没有使用 OpenAI 或其他平台的 Key。'
+    return '模型平台鉴权失败：请确认设置页保存的是当前平台对应的 API Key，并且 Base URL 与模型平台匹配。'
   }
 
   if (status === 403 || /403|forbidden|permission/i.test(errorText)) {
-    return 'SiliconFlow 权限不足：当前 API Key 无权访问该模型或服务，请检查账号权限、余额和模型访问范围。'
+    return '模型平台权限不足：当前 API Key 无权访问该模型或服务，请检查账号权限、余额和模型访问范围。'
   }
 
   if (status === 404 || /404|model.*not.*found|not found/i.test(errorText)) {
-    return 'SiliconFlow 模型不存在或不可用：请在设置页确认模型名称是否正确，或切换为账号可用的模型。'
+    return '模型不存在或不可用：请在设置页确认模型名称是否正确，或切换为当前平台账号可用的模型。'
   }
 
   if (status === 429 || /429|rate limit|too many requests|quota/i.test(errorText)) {
-    return 'SiliconFlow 请求过于频繁或额度受限：请稍后重试，或检查账号额度、并发限制和计费状态。'
+    return '模型平台请求过于频繁或额度受限：请稍后重试，或检查账号额度、并发限制和计费状态。'
   }
 
   if (status && status >= 500) {
-    return `SiliconFlow 服务端异常（${status}）：请稍后重试；如果持续失败，请检查 SiliconFlow 服务状态。`
+    return `模型平台服务端异常（${status}）：请稍后重试；如果持续失败，请检查平台服务状态。`
   }
 
   if (/timeout|timed out|aborted|aborterror|etimedout/i.test(errorText)) {
-    return 'SiliconFlow 请求超时：请检查网络连接，或在设置页适当增大 API 请求超时时间。'
+    return '模型请求超时：请检查网络连接，或在设置页适当增大 API 请求超时时间。'
   }
 
   if (/enotfound|econnreset|econnrefused|network|fetch failed|getaddrinfo/i.test(errorText)) {
-    return '无法连接 SiliconFlow：请检查网络、代理、防火墙，以及 SILICONFLOW_BASE_URL 是否正确。'
+    return '无法连接模型平台：请检查网络、代理、防火墙，以及 Base URL 是否正确。'
   }
 
   if (status === 400 || /400|bad request|invalid_request/i.test(errorText)) {
-    return `SiliconFlow 请求参数错误：请检查模型名称、Prompt 内容和请求格式。原始信息：${message}`
+    return `模型请求参数错误：请检查模型名称、Prompt 内容和请求格式。原始信息：${message}`
   }
 
-  return message || '硅基流动 API 调用失败'
+  return message || '模型平台 API 调用失败'
 }
 
 export async function readAiConfig(): Promise<AiConfigResponse> {
@@ -84,6 +84,7 @@ export async function readAiConfig(): Promise<AiConfigResponse> {
 
   return {
     hasApiKey: Boolean(config.apiKey),
+    provider: config.provider,
     model: config.model
   }
 }
@@ -92,7 +93,7 @@ export async function handleAiGenerateText(request: AiGenerateTextRequest): Prom
   const config = await readAiRuntimeConfig()
 
   if (!config.apiKey) {
-    return { ok: false, text: '', model: config.model, error: '未配置 SILICONFLOW_API_KEY' }
+    return { ok: false, text: '', model: config.model, error: '未配置当前模型平台 API Key' }
   }
 
   try {
@@ -132,7 +133,7 @@ export async function handleAiGenerateTextStream(
   const config = await readAiRuntimeConfig()
 
   if (!config.apiKey) {
-    onEvent({ type: 'error', requestId: request.requestId, model: config.model, error: '未配置 SILICONFLOW_API_KEY' })
+    onEvent({ type: 'error', requestId: request.requestId, model: config.model, error: '未配置当前模型平台 API Key' })
     return
   }
 
@@ -196,7 +197,7 @@ export async function handleAiTestConnection(): Promise<AiConnectionResponse> {
       ok: false,
       model: config.model,
       baseURL: config.baseURL,
-      error: '未配置 SILICONFLOW_API_KEY：请在 .env 或设置页保存硅基流动 API Key。'
+      error: '未配置当前模型平台 API Key：请在 .env 或设置页保存对应平台的 API Key。'
     }
   }
 
