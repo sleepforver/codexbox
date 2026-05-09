@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Bot, Clipboard, RefreshCw, Search, Square, Trash2 } from 'lucide-vue-next'
+import { Bot, Clipboard, RefreshCw, Search, Square, Star, Trash2 } from 'lucide-vue-next'
 import type { AiHistoryItem, AiTaskType, WorkspaceProject } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { renderMarkdown } from '../markdown'
 import { safeLoad } from '../safeLoad'
 import { showToast } from '../toast'
+import { showOperationError } from '../dbFeedback'
 
 const taskOptions: Array<{ value: AiTaskType | 'all'; label: string }> = [
   { value: 'all', label: '全部任务' },
@@ -21,6 +22,7 @@ const projects = ref<WorkspaceProject[]>([])
 const selectedTaskType = ref<AiTaskType | 'all'>('all')
 const selectedProjectId = ref('')
 const keyword = ref('')
+const favoriteOnly = ref(false)
 const selectedItem = ref<AiHistoryItem | null>(null)
 const output = ref('')
 const activeRequestId = ref('')
@@ -33,13 +35,18 @@ const filteredHistories = computed(() => {
   return histories.value.filter((item) => {
     const taskMatched = selectedTaskType.value === 'all' || item.taskType === selectedTaskType.value
     if (!taskMatched) return false
+    if (favoriteOnly.value && !item.isFavorite) return false
     if (!lowerKeyword) return true
-    return [item.title, item.prompt, item.output, item.model, item.taskType].some((value) => value.toLowerCase().includes(lowerKeyword))
+    return [item.title, item.prompt, item.output, item.model, item.taskType].some((value) =>
+      value.toLowerCase().includes(lowerKeyword)
+    )
   })
 })
 const renderedSelectedOutput = computed(() => renderMarkdown(selectedItem.value?.output ?? ''))
 const renderedOutput = computed(() => renderMarkdown(output.value))
-const selectedTaskLabel = computed(() => taskOptions.find((item) => item.value === selectedTaskType.value)?.label ?? '全部任务')
+const selectedTaskLabel = computed(
+  () => taskOptions.find((item) => item.value === selectedTaskType.value)?.label ?? '全部任务'
+)
 const selectedProjectLabel = computed(() => {
   if (!selectedProjectId.value) return '全部项目'
   return projects.value.find((item) => item.id === selectedProjectId.value)?.name ?? '未知项目'
@@ -85,6 +92,43 @@ async function copySelectedOutput(): Promise<void> {
   showToast('输出已复制', 'success')
 }
 
+async function createTemplateFromSelected(): Promise<void> {
+  if (!selectedItem.value) return
+  const name = window.prompt('请输入模板名称', `${selectedItem.value.title} 模板`)
+  if (!name?.trim()) return
+  status.value = '正在从历史记录创建 Prompt 模板'
+  statusType.value = 'idle'
+  try {
+    await devtoolsApi.ai.savePromptTemplate({
+      taskType: selectedItem.value.taskType,
+      name: name.trim(),
+      content: selectedItem.value.prompt,
+      variables: []
+    })
+    status.value = '已从历史记录创建 Prompt 模板'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    status.value = showOperationError(error, '创建 Prompt 模板失败')
+    statusType.value = 'error'
+  }
+}
+
+async function toggleSelectedFavorite(): Promise<void> {
+  if (!selectedItem.value) return
+  const nextFavorite = !selectedItem.value.isFavorite
+  try {
+    histories.value = await devtoolsApi.ai.toggleHistoryFavorite(selectedItem.value.id, nextFavorite)
+    selectedItem.value = histories.value.find((item) => item.id === selectedItem.value?.id) ?? selectedItem.value
+    status.value = nextFavorite ? '已收藏 AI 历史' : '已取消收藏 AI 历史'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    status.value = showOperationError(error, nextFavorite ? '收藏 AI 历史失败' : '取消收藏 AI 历史失败')
+    statusType.value = 'error'
+  }
+}
+
 async function copyRerunOutput(): Promise<void> {
   if (!output.value) return
   await navigator.clipboard.writeText(output.value)
@@ -93,31 +137,43 @@ async function copyRerunOutput(): Promise<void> {
 
 async function deleteSelected(): Promise<void> {
   if (!selectedItem.value) return
-  await devtoolsApi.ai.deleteHistory(selectedItem.value.id)
-  await loadHistories()
-  selectedItem.value = filteredHistories.value[0] ?? histories.value[0] ?? null
-  status.value = '历史记录已删除'
-  statusType.value = 'success'
-  showToast(status.value, 'success')
+  try {
+    await devtoolsApi.ai.deleteHistory(selectedItem.value.id)
+    await loadHistories()
+    selectedItem.value = filteredHistories.value[0] ?? histories.value[0] ?? null
+    status.value = '历史记录已删除'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    status.value = showOperationError(error, '删除历史记录失败')
+    statusType.value = 'error'
+  }
 }
 
 async function clearFiltered(): Promise<void> {
   if (!filteredHistories.value.length) return
   if (!window.confirm(`确认清空当前筛选结果中的 ${filteredHistories.value.length} 条 AI 历史？`)) return
-  const projectId = selectedProjectId.value || undefined
-  if (selectedTaskType.value === 'all' && !keyword.value.trim()) {
-    histories.value = await devtoolsApi.ai.clearHistory(undefined, projectId)
-  } else if (selectedTaskType.value !== 'all' && !keyword.value.trim()) {
-    await devtoolsApi.ai.clearHistory(selectedTaskType.value, projectId)
-    await loadHistories()
-  } else {
-    await Promise.all(filteredHistories.value.map((item) => devtoolsApi.ai.deleteHistory(item.id)))
-    await loadHistories()
+  status.value = '正在清空 AI 历史'
+  statusType.value = 'idle'
+  try {
+    const projectId = selectedProjectId.value || undefined
+    if (selectedTaskType.value === 'all' && !keyword.value.trim()) {
+      histories.value = await devtoolsApi.ai.clearHistory(undefined, projectId)
+    } else if (selectedTaskType.value !== 'all' && !keyword.value.trim()) {
+      await devtoolsApi.ai.clearHistory(selectedTaskType.value, projectId)
+      await loadHistories()
+    } else {
+      await Promise.all(filteredHistories.value.map((item) => devtoolsApi.ai.deleteHistory(item.id)))
+      await loadHistories()
+    }
+    selectedItem.value = filteredHistories.value[0] ?? histories.value[0] ?? null
+    status.value = '筛选范围内的历史已清空'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    status.value = showOperationError(error, '清空 AI 历史失败')
+    statusType.value = 'error'
   }
-  selectedItem.value = filteredHistories.value[0] ?? histories.value[0] ?? null
-  status.value = '筛选范围内的历史已清空'
-  statusType.value = 'success'
-  showToast(status.value, 'success')
 }
 
 async function rerunSelected(): Promise<void> {
@@ -128,57 +184,65 @@ async function rerunSelected(): Promise<void> {
   statusType.value = 'idle'
 
   const source = selectedItem.value
-  const stream = await devtoolsApi.ai.generateTextStream({
-    taskType: source.taskType,
-    prompt: source.prompt
-  }, (event) => {
-    if (event.type === 'chunk') {
-      output.value += event.text
-      return
-    }
+  const stream = await devtoolsApi.ai.generateTextStream(
+    {
+      taskType: source.taskType,
+      prompt: source.prompt
+    },
+    (event) => {
+      if (event.type === 'chunk') {
+        output.value += event.text
+        return
+      }
 
-    if (event.type === 'done') {
+      if (event.type === 'done') {
+        loading.value = false
+        activeRequestId.value = ''
+        status.value = `重新执行完成 · ${event.model}`
+        statusType.value = 'success'
+        showToast(status.value, 'success')
+        void saveRerunHistory(source, event.model)
+        return
+      }
+
+      if (event.type === 'canceled') {
+        loading.value = false
+        activeRequestId.value = ''
+        status.value = '已停止重新执行'
+        statusType.value = 'idle'
+        showToast(status.value, 'info')
+        return
+      }
+
       loading.value = false
       activeRequestId.value = ''
-      status.value = `重新执行完成 · ${event.model}`
-      statusType.value = 'success'
-      showToast(status.value, 'success')
-      void saveRerunHistory(source, event.model)
-      return
+      output.value = event.error
+      status.value = event.error
+      statusType.value = 'error'
+      showToast(status.value, 'error')
     }
-
-    if (event.type === 'canceled') {
-      loading.value = false
-      activeRequestId.value = ''
-      status.value = '已停止重新执行'
-      statusType.value = 'idle'
-      showToast(status.value, 'info')
-      return
-    }
-
-    loading.value = false
-    activeRequestId.value = ''
-    output.value = event.error
-    status.value = event.error
-    statusType.value = 'error'
-    showToast(status.value, 'error')
-  })
+  )
 
   activeRequestId.value = stream.requestId
 }
 
 async function saveRerunHistory(source: AiHistoryItem, model: string): Promise<void> {
   if (!output.value.trim()) return
-  const savedHistories = await devtoolsApi.ai.saveHistory({
-    taskType: source.taskType,
-    title: `${source.title}（重新执行）`.slice(0, 60),
-    prompt: source.prompt,
-    output: output.value,
-    model,
-    projectId: source.projectId ?? (selectedProjectId.value || undefined)
-  })
-  await loadHistories()
-  selectedItem.value = savedHistories[0] ?? histories.value[0] ?? selectedItem.value
+  try {
+    const savedHistories = await devtoolsApi.ai.saveHistory({
+      taskType: source.taskType,
+      title: `${source.title}（重新执行）`.slice(0, 60),
+      prompt: source.prompt,
+      output: output.value,
+      model,
+      projectId: source.projectId ?? (selectedProjectId.value || undefined)
+    })
+    await loadHistories()
+    selectedItem.value = savedHistories[0] ?? histories.value[0] ?? selectedItem.value
+  } catch (error) {
+    status.value = showOperationError(error, '保存重新执行历史失败')
+    statusType.value = 'error'
+  }
 }
 
 async function stopRerun(): Promise<void> {
@@ -240,6 +304,10 @@ onMounted(() => {
               重置
             </button>
           </div>
+          <label class="toggle-row">
+            <input v-model="favoriteOnly" type="checkbox" />
+            只看收藏
+          </label>
 
           <div class="history-list ai-history-center-list">
             <button
@@ -250,9 +318,15 @@ onMounted(() => {
               type="button"
               @click="selectHistory(item)"
             >
-              <span class="badge">{{ taskOptions.find((option) => option.value === item.taskType)?.label ?? item.taskType }}</span>
+              <span class="badge">{{
+                taskOptions.find((option) => option.value === item.taskType)?.label ?? item.taskType
+              }}</span>
+              <span v-if="item.isFavorite" class="badge success">已收藏</span>
               <strong>{{ item.title }}</strong>
-              <small>{{ getProjectName(item.projectId) }} · {{ item.model }} · {{ new Date(item.createdAt).toLocaleString() }}</small>
+              <small
+                >{{ getProjectName(item.projectId) }} · {{ item.model }} ·
+                {{ new Date(item.createdAt).toLocaleString() }}</small
+              >
             </button>
             <div v-if="!filteredHistories.length" class="empty-state compact-empty">暂无匹配历史</div>
           </div>
@@ -275,6 +349,14 @@ onMounted(() => {
               <button class="button secondary" type="button" @click="copySelectedOutput">
                 <Clipboard :size="16" />
                 复制输出
+              </button>
+              <button class="button secondary" type="button" @click="createTemplateFromSelected">
+                <Clipboard :size="16" />
+                转为模板
+              </button>
+              <button class="button secondary" type="button" @click="toggleSelectedFavorite">
+                <Star :size="16" />
+                {{ selectedItem.isFavorite ? '取消收藏' : '收藏' }}
               </button>
               <button class="button" type="button" :disabled="loading" @click="rerunSelected">
                 <Bot :size="16" />
@@ -319,6 +401,6 @@ onMounted(() => {
       </div>
     </div>
 
-    <footer class="status-bar" :class="statusType">{{ status }}</footer>
+    <footer class="status-bar" :class="statusType" role="status" aria-live="polite">{{ status }}</footer>
   </section>
 </template>

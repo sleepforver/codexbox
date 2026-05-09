@@ -55,8 +55,8 @@ body,
 
 body {
   margin: 0;
-  min-width: 1024px;
-  min-height: 680px;
+  min-width: 0;
+  min-height: 0;
   background:
     linear-gradient(180deg, #f6faf9 0%, var(--page) 100%);
 }
@@ -74,7 +74,7 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: clamp(232px, 18vw, 264px) minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
@@ -82,10 +82,10 @@ button {
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: clamp(18px, 2.2vh, 28px);
   height: 100vh;
   overflow: hidden;
-  padding: 22px 16px;
+  padding: clamp(16px, 2vw, 22px) clamp(12px, 1.3vw, 16px);
   color: #f7fbfa;
   background: #22302f;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
@@ -139,7 +139,7 @@ button {
   grid-template-columns: 24px 1fr;
   align-items: center;
   gap: 10px;
-  min-height: 54px;
+  min-height: clamp(48px, 5.7vh, 54px);
   padding: 8px 12px;
   color: #d9e7e4;
   border-radius: 8px;
@@ -159,7 +159,7 @@ button {
   height: 100vh;
   min-width: 0;
   overflow: hidden;
-  padding: 22px 24px 24px;
+  padding: clamp(16px, 1.8vw, 24px);
 }
 
 .workspace-header,
@@ -175,8 +175,8 @@ button {
 
 .workspace-header {
   justify-content: space-between;
-  margin-bottom: 18px;
-  min-height: 54px;
+  margin-bottom: clamp(12px, 1.4vw, 18px);
+  min-height: clamp(48px, 5.2vh, 54px);
 }
 
 .workspace-actions {
@@ -207,7 +207,7 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: 28px;
+  font-size: clamp(22px, 2vw, 28px);
   font-weight: 700;
   line-height: 1.2;
   color: var(--text);
@@ -242,8 +242,11 @@ h1 {
 
 .tool-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: 100%;
+  max-width: 1680px;
   min-height: 0;
+  margin: 0 auto;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -254,8 +257,9 @@ h1 {
 }
 
 .tool-header {
+  order: 1;
   justify-content: space-between;
-  padding: 17px 20px;
+  padding: clamp(13px, 1.4vw, 17px) clamp(14px, 1.6vw, 20px);
   border-bottom: 1px solid var(--line);
   background: var(--soft);
 }
@@ -283,15 +287,16 @@ h1 {
 }
 
 .tool-body {
+  order: 3;
   min-height: 0;
   overflow: auto;
-  padding: 18px 20px;
+  padding: clamp(14px, 1.5vw, 20px);
 }
 
 .split-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr));
+  gap: clamp(14px, 1.4vw, 18px);
   min-height: 100%;
 }
 
@@ -307,7 +312,7 @@ h1 {
 .template-manager-grid > .section {
   border: 1px solid #e3ebe9;
   border-radius: 8px;
-  padding: 14px;
+  padding: clamp(12px, 1.1vw, 14px);
   background: rgba(255, 255, 255, 0.72);
 }
 
@@ -316,13 +321,16 @@ h1 {
 }
 
 .status-bar {
+  order: 2;
   justify-content: space-between;
   min-height: 42px;
   padding: 10px 20px;
-  border-top: 1px solid var(--line);
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
   color: var(--muted);
   background: var(--soft);
   font-size: 13px;
+  line-height: 1.45;
 }
 
 .status-bar.error,
@@ -420,7 +428,7 @@ h1 {
 }
 
 .textarea {
-  min-height: 340px;
+  min-height: clamp(280px, 42vh, 420px);
   resize: vertical;
   font-family: "Cascadia Code", Consolas, "Courier New", monospace;
   line-height: 1.55;
@@ -541,7 +549,7 @@ h1 {
 }
 
 .output-box {
-  min-height: 340px;
+  min-height: clamp(280px, 42vh, 420px);
 }
 
 .ai-output-scroll {
@@ -549,14 +557,14 @@ h1 {
 }
 
 .ai-pane-fixed {
-  height: 520px;
-  min-height: 520px;
-  max-height: 520px;
+  height: clamp(420px, 58vh, 560px);
+  min-height: clamp(420px, 58vh, 560px);
+  max-height: clamp(420px, 58vh, 560px);
   resize: none;
 }
 
 .output-box.ai-output-scroll:not(.ai-pane-fixed) {
-  max-height: 520px;
+  max-height: clamp(360px, 58vh, 560px);
 }
 
 .git-ai-output {
@@ -716,6 +724,33 @@ h1 {
   min-width: 0;
 }
 
+.assertion-list {
+  display: grid;
+  gap: 8px;
+}
+
+.assertion-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.5fr) minmax(0, 1fr) minmax(0, 0.8fr) 38px;
+  gap: 8px;
+}
+
+.assertion-output {
+  display: block;
+  overflow: auto;
+}
+
+.assertion-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.assertion-result small {
+  grid-column: 2;
+}
+
 .tabs {
   flex-wrap: wrap;
 }
@@ -807,6 +842,16 @@ h1 {
   gap: 8px;
 }
 
+.git-change-item {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.check-input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
+
 .plain-list-button {
   width: 100%;
   border: 0;
@@ -814,6 +859,34 @@ h1 {
   color: inherit;
   background: transparent;
   text-align: left;
+}
+
+.discovered-api-button {
+  border: 1px solid #e1ebe8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fbfefd;
+}
+
+.discovered-api-button:hover {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+}
+
+.discovery-group {
+  display: grid;
+  gap: 10px;
+}
+
+.discovery-group-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.discovery-group-list {
+  padding-top: 2px;
 }
 
 .list-item:hover {
@@ -905,7 +978,7 @@ code {
 .toast-stack {
   position: fixed;
   right: 20px;
-  bottom: 20px;
+  top: 20px;
   z-index: 20;
   display: grid;
   gap: 8px;
@@ -1025,7 +1098,7 @@ code {
 }
 
 .project-list {
-  max-height: 560px;
+  max-height: clamp(360px, 58vh, 620px);
   overflow: auto;
 }
 
@@ -1047,7 +1120,7 @@ code {
 
 @media (max-width: 1180px) {
   .app-shell {
-    grid-template-columns: 232px minmax(0, 1fr);
+    grid-template-columns: 220px minmax(0, 1fr);
   }
 
   .sidebar {
@@ -1056,6 +1129,20 @@ code {
 
   .workspace {
     padding: 18px;
+  }
+
+  .workspace-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .workspace-actions {
+    width: 100%;
+    justify-content: start;
+  }
+
+  .recent-project-select {
+    max-width: min(360px, 100%);
   }
 
   .split-grid,
@@ -1073,5 +1160,71 @@ code {
 
   .history-detail-box {
     height: 320px;
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    align-items: center;
+    gap: 18px;
+    padding: 14px 10px;
+  }
+
+  .brand {
+    justify-content: center;
+    padding: 4px 0;
+  }
+
+  .brand > div:last-child,
+  .nav-link small {
+    display: none;
+  }
+
+  .module-nav {
+    width: 100%;
+  }
+
+  .nav-link {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 4px;
+    min-height: 54px;
+    padding: 8px 6px;
+    text-align: center;
+  }
+
+  .nav-link strong {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .tool-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .toolbar {
+    width: 100%;
+  }
+
+  .request-row,
+  .history-filter-row,
+  .geo-input-row,
+  .header-row,
+  .assertion-row,
+  .inline-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .select-compact {
+    width: 100%;
+  }
+
+  .meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

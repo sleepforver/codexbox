@@ -1,13 +1,27 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { Bot, Clock3, Copy, Eye, History, Plus, Save, Send, Square, Trash2 } from 'lucide-vue-next'
-import type { AiHistoryItem, AiPromptTemplate, AiTaskType, ApiHistoryItem, ApiMethod, ApiSavedRequest, ApiSendResponse, EnvPair, HeaderPair, WorkspaceProject } from '../../shared/ipc'
+import { Bot, Clock3, Copy, Eye, History, Plus, Save, Search, Send, Square, Trash2 } from 'lucide-vue-next'
+import type {
+  AiHistoryItem,
+  AiPromptTemplate,
+  AiTaskType,
+  ApiDiscoveredRequest,
+  ApiDiscoveryResponse,
+  ApiHistoryItem,
+  ApiMethod,
+  ApiSavedRequest,
+  ApiSendResponse,
+  EnvPair,
+  HeaderPair,
+  WorkspaceProject
+} from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { isApiSendError } from '../ipcGuards'
 import { renderMarkdown } from '../markdown'
 import { renderPromptTemplate } from '../promptTemplates'
 import { safeLoad } from '../safeLoad'
 import { showToast } from '../toast'
+import { showOperationError } from '../dbFeedback'
 
 const aiTaskType: AiTaskType = 'api-debug'
 const methods: ApiMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']
@@ -22,7 +36,19 @@ const authToken = ref('')
 const basicUser = ref('')
 const basicPassword = ref('')
 const response = ref<ApiSendResponse | null>(null)
-const activeTab = ref<'body' | 'headers' | 'summary' | 'ai'>('body')
+type AssertionType = 'status' | 'json-path' | 'field-exists'
+interface ApiAssertion {
+  type: AssertionType
+  path: string
+  expected: string
+}
+interface ApiAssertionResult {
+  label: string
+  passed: boolean
+  message: string
+}
+const assertions = ref<ApiAssertion[]>([{ type: 'status', path: '', expected: '200' }])
+const activeTab = ref<'body' | 'headers' | 'summary' | 'assertions' | 'ai'>('body')
 const loading = ref(false)
 const aiLoading = ref(false)
 const activeAiRequestId = ref('')
@@ -33,6 +59,12 @@ const selectedAiHistoryItem = ref<AiHistoryItem | null>(null)
 const savedRequests = ref<ApiSavedRequest[]>([])
 const projects = ref<WorkspaceProject[]>([])
 const selectedProjectId = ref('')
+const apiDiscovery = ref<ApiDiscoveryResponse | null>(null)
+const scanningApis = ref(false)
+const importingOpenApi = ref(false)
+const importingDiscoveredApis = ref(false)
+const discoveryImportMode = ref<'skip' | 'overwrite'>('skip')
+const collapsedDiscoveryGroups = ref<Record<string, boolean>>({})
 const requestName = ref('')
 const timeoutMs = ref(30000)
 const aiOutput = ref('')
@@ -52,6 +84,15 @@ const responseClass = computed(() => {
 const renderedAiOutput = computed(() => renderMarkdown(aiOutput.value || 'AI 分析结果会显示在这里'))
 const renderedHistoryOutput = computed(() => renderMarkdown(selectedAiHistoryItem.value?.output ?? ''))
 const selectedTemplate = computed(() => templates.value.find((item) => item.id === selectedTemplateId.value))
+const selectedProject = computed(() => projects.value.find((item) => item.id === selectedProjectId.value) ?? null)
+const selectedProjectLabel = computed(() => selectedProject.value?.name ?? '全局')
+const discoveredRequests = computed(() => apiDiscovery.value?.groups.flatMap((group) => group.requests) ?? [])
+const assertionResults = computed(() => evaluateAssertions())
+const assertionSummary = computed(() => {
+  if (!response.value?.ok || !assertionResults.value.length) return null
+  const passed = assertionResults.value.filter((item) => item.passed).length
+  return { passed, total: assertionResults.value.length, ok: passed === assertionResults.value.length }
+})
 const filteredAiHistory = computed(() => {
   const keyword = aiHistorySearch.value.trim().toLowerCase()
   if (!keyword) return aiHistory.value
@@ -62,7 +103,7 @@ const filteredAiHistory = computed(() => {
 
 async function loadState(): Promise<void> {
   const [state, settings, projectItems, requests, promptTemplates, apiAiHistory] = await Promise.all([
-    devtoolsApi.api.getState(),
+    devtoolsApi.api.getState(selectedProjectId.value || undefined),
     devtoolsApi.settings.get(),
     devtoolsApi.projects.list(),
     devtoolsApi.api.getSavedRequests(selectedProjectId.value || undefined),
@@ -70,31 +111,207 @@ async function loadState(): Promise<void> {
     devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value || undefined)
   ])
   envVars.value = state.envVars.length ? state.envVars : [{ key: 'baseUrl', value: 'https://httpbin.org' }]
+  ensureEnvVariable('token')
   history.value = state.history
   projects.value = projectItems
   const shouldUseRecentProject = !selectedProjectId.value && Boolean(projects.value[0])
   selectedProjectId.value = selectedProjectId.value || projects.value[0]?.id || ''
-  savedRequests.value = shouldUseRecentProject ? await devtoolsApi.api.getSavedRequests(selectedProjectId.value) : requests
+  if (selectedProjectId.value) {
+    const projectState = await devtoolsApi.api.getState(selectedProjectId.value)
+    envVars.value = projectState.envVars
+    ensureEnvVariable('token')
+  }
+  savedRequests.value = shouldUseRecentProject
+    ? await devtoolsApi.api.getSavedRequests(selectedProjectId.value)
+    : requests
   timeoutMs.value = settings.apiTimeoutMs
   templates.value = promptTemplates
-  aiHistory.value = shouldUseRecentProject ? await devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value) : apiAiHistory
+  aiHistory.value = shouldUseRecentProject
+    ? await devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value)
+    : apiAiHistory
   selectedTemplateId.value = promptTemplates[0]?.id ?? ''
+  await applyProjectDefaultTemplate()
   templateDraft.value = promptTemplates[0]?.content ?? ''
+  if (selectedTemplate.value) templateDraft.value = selectedTemplate.value.content
+}
+
+async function applyProjectDefaultTemplate(): Promise<void> {
+  if (!selectedProjectId.value) return
+  const templateId = await devtoolsApi.ai.getProjectPromptDefault(selectedProjectId.value, aiTaskType)
+  if (templateId && templates.value.some((item) => item.id === templateId)) selectedTemplateId.value = templateId
+}
+
+async function discoverProjectApis(): Promise<void> {
+  if (!selectedProject.value) {
+    status.value = '请先选择项目工作区'
+    statusType.value = 'error'
+    showToast(status.value, 'error')
+    return
+  }
+  scanningApis.value = true
+  apiDiscovery.value = null
+  status.value = '正在异步扫描项目 API'
+  statusType.value = 'idle'
+  try {
+    apiDiscovery.value = await devtoolsApi.api.discoverRequests({
+      projectId: selectedProject.value.id,
+      projectPath: selectedProject.value.path
+    })
+    collapsedDiscoveryGroups.value = {}
+    status.value = `扫描完成，发现 ${discoveredRequests.value.length} 个接口`
+    statusType.value = discoveredRequests.value.length ? 'success' : 'error'
+    showToast(status.value, statusType.value === 'success' ? 'success' : 'error')
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'API 自动扫描失败'
+    statusType.value = 'error'
+    showToast(status.value, 'error')
+  } finally {
+    scanningApis.value = false
+  }
+}
+
+async function importDiscoveredApis(): Promise<void> {
+  if (!discoveredRequests.value.length) {
+    status.value = '没有可导入的扫描接口'
+    statusType.value = 'error'
+    showToast(status.value, 'error')
+    return
+  }
+  importingDiscoveredApis.value = true
+  status.value = '正在导入扫描接口'
+  status.value = '正在导入扫描接口'
+  try {
+    savedRequests.value = await devtoolsApi.api.importDiscoveredRequests(
+      selectedProjectId.value || undefined,
+      discoveredRequests.value,
+      discoveryImportMode.value
+    )
+    status.value = `扫描接口导入完成，请在请求集合中查看`
+    statusType.value = 'success'
+    status.value = '扫描接口导入完成，请在请求集合中查看'
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : '导入扫描接口失败'
+    statusType.value = 'error'
+    status.value = error instanceof Error ? error.message : '导入扫描接口失败'
+  } finally {
+    importingDiscoveredApis.value = false
+  }
+}
+
+async function loadOpenApiRequests(): Promise<void> {
+  importingOpenApi.value = true
+  status.value = '正在导入 OpenAPI / Swagger 文档'
+  status.value = '正在导入 OpenAPI / Swagger 文档'
+  try {
+    const result = await devtoolsApi.api.loadOpenApiRequests()
+    if (!result) return
+    apiDiscovery.value = result
+    collapsedDiscoveryGroups.value = {}
+    status.value = `OpenAPI 导入完成，发现 ${discoveredRequests.value.length} 个接口`
+    statusType.value = discoveredRequests.value.length ? 'success' : 'error'
+    showToast(status.value, statusType.value === 'success' ? 'success' : 'error')
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'OpenAPI 导入失败'
+    statusType.value = 'error'
+    showToast(status.value, 'error')
+  } finally {
+    importingOpenApi.value = false
+  }
 }
 
 async function persistState(): Promise<void> {
-  const state = await devtoolsApi.api.saveState({
-    envVars: envVars.value,
-    history: history.value
-  })
-  envVars.value = state.envVars
-  history.value = state.history
+  try {
+    const state = await devtoolsApi.api.saveState(
+      {
+        envVars: envVars.value,
+        history: history.value
+      },
+      selectedProjectId.value || undefined
+    )
+    envVars.value = state.envVars
+    history.value = state.history
+  } catch (error) {
+    status.value = showOperationError(error, '保存 API 环境变量或请求历史失败')
+    statusType.value = 'error'
+  }
 }
 
 function resolveVariables(value = ''): string {
   return value.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_match, key: string) => {
     return envVars.value.find((item) => item.key === key)?.value ?? ''
   })
+}
+
+function discoveryGroupKey(group: { sourceType: string; name: string }): string {
+  return `${group.sourceType}:${group.name}`
+}
+
+function isDiscoveryGroupCollapsed(group: { sourceType: string; name: string }): boolean {
+  return collapsedDiscoveryGroups.value[discoveryGroupKey(group)] ?? false
+}
+
+function toggleDiscoveryGroup(group: { sourceType: string; name: string }): void {
+  const key = discoveryGroupKey(group)
+  collapsedDiscoveryGroups.value = {
+    ...collapsedDiscoveryGroups.value,
+    [key]: !isDiscoveryGroupCollapsed(group)
+  }
+}
+
+function ensureEnvVariable(key: string, value = ''): void {
+  const name = key.trim()
+  if (!name) return
+  if (envVars.value.some((item) => item.key === name)) return
+  envVars.value.push({ key: name, value })
+}
+
+function extractTemplateVariables(value = ''): string[] {
+  const result = new Set<string>()
+  for (const match of value.matchAll(/\{\{\s*([\w.-]+)\s*\}\}/g)) {
+    result.add(match[1])
+  }
+  return [...result]
+}
+
+function splitDiscoveredUrl(value: string): { path: string; params: HeaderPair[] } {
+  const [path, query = ''] = value.split('?')
+  const params = query
+    .split('&')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const [rawKey, ...rawValue] = item.split('=')
+      return {
+        key: decodeURIComponent(rawKey || ''),
+        value: decodeURIComponent(rawValue.join('=') || '')
+      }
+    })
+    .filter((item) => item.key)
+  return { path: path || '/', params }
+}
+
+function syncVariablesFromRequest(item: ApiDiscoveredRequest, params: HeaderPair[]): void {
+  for (const key of extractTemplateVariables(item.url)) ensureEnvVariable(key)
+  for (const key of extractTemplateVariables(item.body)) ensureEnvVariable(key)
+  for (const param of params) {
+    for (const key of extractTemplateVariables(param.value)) ensureEnvVariable(key)
+  }
+  for (const header of item.headers) {
+    for (const key of extractTemplateVariables(header.key)) ensureEnvVariable(key)
+    for (const key of extractTemplateVariables(header.value)) ensureEnvVariable(key)
+  }
+  if (item.headers.some((header) => header.key.toLowerCase() === 'authorization' && /token/i.test(header.value))) {
+    authMode.value = 'bearer'
+    authToken.value = '{{token}}'
+    ensureEnvVariable('token')
+  }
+}
+
+function applyTokenVariable(): void {
+  ensureEnvVariable('token')
+  authMode.value = 'bearer'
+  authToken.value = '{{token}}'
+  void persistState()
 }
 
 function resolvedHeaders(): HeaderPair[] {
@@ -139,6 +356,99 @@ function buildCurl(): string {
   return parts.join(' \\\n  ')
 }
 
+function readPathValue(source: unknown, path: string): { matched: boolean; value: unknown } {
+  const normalized = path.trim().replace(/^\$\.?/, '')
+  if (!normalized) return { matched: true, value: source }
+
+  const segments = normalized
+    .replace(/\[(\d+)\]/g, '.$1')
+    .split('.')
+    .filter(Boolean)
+
+  let current = source
+  for (const segment of segments) {
+    if (Array.isArray(current)) {
+      const index = Number(segment)
+      if (!Number.isInteger(index) || index < 0 || index >= current.length) return { matched: false, value: undefined }
+      current = current[index]
+      continue
+    }
+    if (current !== null && typeof current === 'object' && segment in current) {
+      current = (current as Record<string, unknown>)[segment]
+      continue
+    }
+    return { matched: false, value: undefined }
+  }
+
+  return { matched: true, value: current }
+}
+
+function normalizeAssertionValue(value: unknown): string {
+  return typeof value === 'string' ? value : JSON.stringify(value)
+}
+
+function evaluateAssertions(): ApiAssertionResult[] {
+  if (!response.value?.ok) return []
+  let parsedBody: unknown = null
+  let jsonParsed = false
+
+  if (response.value.metadata.isJson && response.value.body.trim()) {
+    try {
+      parsedBody = JSON.parse(response.value.body)
+      jsonParsed = true
+    } catch {
+      jsonParsed = false
+    }
+  }
+
+  return assertions.value
+    .filter((item) => item.expected.trim() || item.path.trim())
+    .map((item) => {
+      if (item.type === 'status') {
+        const expectedStatus = Number(item.expected.trim())
+        const passed = Boolean(
+          Number.isInteger(expectedStatus) && response.value?.ok && response.value.status === expectedStatus
+        )
+        return {
+          label: '状态码',
+          passed,
+          message: passed
+            ? `状态码等于 ${expectedStatus}`
+            : `期望 ${item.expected || '未填写'}，实际 ${response.value?.ok ? response.value.status : '请求失败'}`
+        }
+      }
+
+      if (!jsonParsed) {
+        return { label: item.path || 'JSONPath', passed: false, message: '响应 Body 不是可解析的 JSON' }
+      }
+
+      const pathResult = readPathValue(parsedBody, item.path)
+      if (item.type === 'field-exists') {
+        return {
+          label: item.path || '字段存在',
+          passed: pathResult.matched,
+          message: pathResult.matched ? '字段存在' : '未匹配到字段'
+        }
+      }
+
+      const actual = normalizeAssertionValue(pathResult.value)
+      const expected = item.expected.trim()
+      return {
+        label: item.path || 'JSONPath',
+        passed: pathResult.matched && actual === expected,
+        message: pathResult.matched ? `期望 ${expected || '空'}，实际 ${actual}` : '未匹配到路径'
+      }
+    })
+}
+
+function addAssertion(): void {
+  assertions.value.push({ type: 'json-path', path: '', expected: '' })
+}
+
+function removeAssertion(index: number): void {
+  assertions.value.splice(index, 1)
+}
+
 function applySelectedTemplate(): void {
   if (!selectedTemplate.value) return
   templateDraft.value = selectedTemplate.value.content
@@ -147,7 +457,10 @@ function applySelectedTemplate(): void {
 }
 
 async function saveHistory(item: ApiHistoryItem): Promise<void> {
-  history.value = [item, ...history.value.filter((entry) => entry.method !== item.method || entry.url !== item.url)].slice(0, 8)
+  history.value = [
+    item,
+    ...history.value.filter((entry) => entry.method !== item.method || entry.url !== item.url)
+  ].slice(0, 8)
   await persistState()
 }
 
@@ -192,26 +505,55 @@ function loadSavedRequest(item: ApiSavedRequest): void {
   showToast(status.value, 'success')
 }
 
-async function saveCurrentRequest(): Promise<void> {
-  savedRequests.value = await devtoolsApi.api.saveRequest({
-    name: requestName.value || `${method.value} ${url.value}`,
-    method: method.value,
-    url: url.value,
-    headers: headers.value,
-    body: body.value,
-    projectId: selectedProjectId.value || undefined
-  })
-  status.value = '请求已保存'
+function loadDiscoveredRequest(item: ApiDiscoveredRequest): void {
+  const parsedUrl = splitDiscoveredUrl(item.url)
+  requestName.value = item.name
+  method.value = item.method
+  url.value = parsedUrl.path
+  queryParams.value = parsedUrl.params.length ? parsedUrl.params : [{ key: '', value: '' }]
+  headers.value = item.headers.length ? item.headers : [{ key: 'Accept', value: 'application/json' }]
+  body.value = item.body
+  syncVariablesFromRequest(item, parsedUrl.params)
+  void persistState()
+  status.value = `已载入扫描接口：${item.name}`
   statusType.value = 'success'
   showToast(status.value, 'success')
 }
 
+async function saveCurrentRequest(): Promise<void> {
+  status.value = '正在保存 API 请求'
+  statusType.value = 'idle'
+  try {
+    savedRequests.value = await devtoolsApi.api.saveRequest({
+      name: requestName.value || `${method.value} ${url.value}`,
+      method: method.value,
+      url: url.value,
+      headers: headers.value,
+      body: body.value,
+      projectId: selectedProjectId.value || undefined
+    })
+    status.value = 'API 请求已保存'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    status.value = showOperationError(error, '保存 API 请求失败')
+    statusType.value = 'error'
+  }
+}
+
 async function deleteSavedRequest(id: string): Promise<void> {
-  await devtoolsApi.api.deleteRequest(id)
-  savedRequests.value = await devtoolsApi.api.getSavedRequests(selectedProjectId.value || undefined)
-  status.value = '请求已删除'
-  statusType.value = 'success'
-  showToast(status.value, 'success')
+  status.value = '正在删除 API 请求'
+  statusType.value = 'idle'
+  try {
+    await devtoolsApi.api.deleteRequest(id)
+    savedRequests.value = await devtoolsApi.api.getSavedRequests(selectedProjectId.value || undefined)
+    status.value = 'API 请求已删除'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    status.value = showOperationError(error, '删除 API 请求失败')
+    statusType.value = 'error'
+  }
 }
 
 async function copyCurl(): Promise<void> {
@@ -247,7 +589,12 @@ async function analyzeResponse(): Promise<void> {
 
   const requestAndResponse = JSON.stringify(
     {
-      request: { method: method.value, url: requestUrl, headers: resolvedHeaders(), body: resolveVariables(body.value) },
+      request: {
+        method: method.value,
+        url: requestUrl,
+        headers: resolvedHeaders(),
+        body: resolveVariables(body.value)
+      },
       response: response.value
     },
     null,
@@ -256,55 +603,63 @@ async function analyzeResponse(): Promise<void> {
   const aiPrompt = templateDraft.value.trim()
     ? renderPromptTemplate(templateDraft.value, { requestAndResponse })
     : requestAndResponse
-  const stream = await devtoolsApi.ai.generateTextStream({
-    taskType: aiTaskType,
-    prompt: aiPrompt
-  }, (event) => {
-    if (event.type === 'chunk') {
-      aiOutput.value += event.text
-      return
-    }
+  const stream = await devtoolsApi.ai.generateTextStream(
+    {
+      taskType: aiTaskType,
+      prompt: aiPrompt
+    },
+    (event) => {
+      if (event.type === 'chunk') {
+        aiOutput.value += event.text
+        return
+      }
 
-    if (event.type === 'done') {
+      if (event.type === 'done') {
+        aiLoading.value = false
+        activeAiRequestId.value = ''
+        status.value = `AI 分析完成 · ${event.model}`
+        statusType.value = 'success'
+        showToast(status.value, 'success')
+        void saveAiHistory(aiPrompt, event.model)
+        return
+      }
+
+      if (event.type === 'canceled') {
+        aiLoading.value = false
+        activeAiRequestId.value = ''
+        status.value = '已停止 AI 分析'
+        statusType.value = 'idle'
+        showToast(status.value, 'info')
+        return
+      }
+
       aiLoading.value = false
       activeAiRequestId.value = ''
-      status.value = `AI 分析完成 · ${event.model}`
-      statusType.value = 'success'
-      showToast(status.value, 'success')
-      void saveAiHistory(aiPrompt, event.model)
-      return
+      aiOutput.value = event.error
+      status.value = event.error
+      statusType.value = 'error'
+      showToast(status.value, 'error')
     }
-
-    if (event.type === 'canceled') {
-      aiLoading.value = false
-      activeAiRequestId.value = ''
-      status.value = '已停止 AI 分析'
-      statusType.value = 'idle'
-      showToast(status.value, 'info')
-      return
-    }
-
-    aiLoading.value = false
-    activeAiRequestId.value = ''
-    aiOutput.value = event.error
-    status.value = event.error
-    statusType.value = 'error'
-    showToast(status.value, 'error')
-  })
+  )
 
   activeAiRequestId.value = stream.requestId
 }
 
 async function saveAiHistory(promptText: string, model: string): Promise<void> {
   if (!aiOutput.value.trim()) return
-  aiHistory.value = await devtoolsApi.ai.saveHistory({
-    taskType: aiTaskType,
-    title: `${method.value} ${url.value}`.slice(0, 60),
-    prompt: promptText,
-    output: aiOutput.value,
-    model,
-    projectId: selectedProjectId.value || undefined
-  })
+  try {
+    aiHistory.value = await devtoolsApi.ai.saveHistory({
+      taskType: aiTaskType,
+      title: `${method.value} ${url.value}`.slice(0, 60),
+      prompt: promptText,
+      output: aiOutput.value,
+      model,
+      projectId: selectedProjectId.value || undefined
+    })
+  } catch (error) {
+    status.value = showOperationError(error, '保存 API AI 分析历史失败')
+    statusType.value = 'error'
+  }
 }
 
 function loadAiHistoryItem(item: AiHistoryItem): void {
@@ -331,16 +686,30 @@ async function copyHistoryOutput(): Promise<void> {
 }
 
 async function deleteAiHistoryItem(id: string): Promise<void> {
-  await devtoolsApi.ai.deleteHistory(id, aiTaskType)
-  aiHistory.value = await devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value || undefined)
-  showToast('AI 历史已删除', 'success')
+  try {
+    await devtoolsApi.ai.deleteHistory(id, aiTaskType)
+    aiHistory.value = await devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value || undefined)
+    status.value = 'AI 历史已删除'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    status.value = showOperationError(error, '删除 AI 历史失败')
+    statusType.value = 'error'
+  }
 }
 
 async function clearAiHistory(): Promise<void> {
   if (!aiHistory.value.length) return
   if (!window.confirm('确认清空 API AI 分析历史？')) return
-  aiHistory.value = await devtoolsApi.ai.clearHistory(aiTaskType, selectedProjectId.value || undefined)
-  showToast('AI 历史已清空', 'success')
+  try {
+    aiHistory.value = await devtoolsApi.ai.clearHistory(aiTaskType, selectedProjectId.value || undefined)
+    status.value = 'AI 历史已清空'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    status.value = showOperationError(error, '清空 AI 历史失败')
+    statusType.value = 'error'
+  }
 }
 
 async function stopAiAnalysis(): Promise<void> {
@@ -385,6 +754,9 @@ async function sendRequest(): Promise<void> {
 
   status.value = '请求完成'
   statusType.value = 'success'
+  if (assertions.value.some((item) => item.expected.trim() || item.path.trim())) {
+    activeTab.value = 'assertions'
+  }
   showToast(status.value, 'success')
   await saveHistory({ method: method.value, url: url.value, at: new Date().toLocaleString() })
 }
@@ -395,12 +767,17 @@ watch(method, (value) => {
 
 watch(selectedProjectId, () => {
   void safeLoad('切换项目数据', async () => {
-    const [requests, historyItems] = await Promise.all([
+    const [requests, apiState, historyItems] = await Promise.all([
       devtoolsApi.api.getSavedRequests(selectedProjectId.value || undefined),
+      devtoolsApi.api.getState(selectedProjectId.value || undefined),
       devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value || undefined)
     ])
     savedRequests.value = requests
+    envVars.value = apiState.envVars
+    ensureEnvVariable('token')
     aiHistory.value = historyItems
+    await applyProjectDefaultTemplate()
+    templateDraft.value = selectedTemplate.value?.content ?? templateDraft.value
   })
 })
 
@@ -425,6 +802,15 @@ onMounted(() => {
           <Copy :size="16" />
           cURL
         </button>
+        <button
+          class="button secondary"
+          type="button"
+          :disabled="scanningApis || !selectedProject"
+          @click="discoverProjectApis"
+        >
+          <Search :size="16" />
+          {{ scanningApis ? '扫描中' : '扫描 API' }}
+        </button>
         <button class="button" type="button" :disabled="loading || !url" @click="sendRequest">
           <Send :size="16" />
           {{ loading ? '发送中' : '发送' }}
@@ -443,7 +829,14 @@ onMounted(() => {
                   {{ item.isBuiltin ? '内置 · ' : '自定义 · ' }}{{ item.name }}
                 </option>
               </select>
-              <button class="button secondary" type="button" :disabled="!selectedTemplate" @click="applySelectedTemplate">应用</button>
+              <button
+                class="button secondary"
+                type="button"
+                :disabled="!selectedTemplate"
+                @click="applySelectedTemplate"
+              >
+                应用
+              </button>
             </div>
           </div>
 
@@ -455,7 +848,9 @@ onMounted(() => {
               </select>
             </label>
             <input v-model="url" class="input" type="url" placeholder="{{baseUrl}}/resource" />
-            <button class="button secondary" type="button" :disabled="loading || !url" @click="sendRequest">发送</button>
+            <button class="button secondary" type="button" :disabled="loading || !url" @click="sendRequest">
+              发送
+            </button>
           </div>
 
           <div class="field">
@@ -471,7 +866,7 @@ onMounted(() => {
               <div v-for="item in savedRequests" :key="item.id" class="list-item action-item">
                 <button class="plain-list-button" type="button" @click="loadSavedRequest(item)">
                   <strong>{{ item.name }}</strong>
-                  <small>{{ item.method }} {{ item.url }}</small>
+                  <small>{{ item.groupName ? `${item.groupName} · ` : '' }}{{ item.method }} {{ item.url }}</small>
                 </button>
                 <button class="icon-button" type="button" aria-label="删除请求" @click="deleteSavedRequest(item.id)">
                   <Trash2 :size="16" />
@@ -480,8 +875,84 @@ onMounted(() => {
             </div>
           </div>
 
+          <div class="section">
+            <div class="meta-row">
+              <Search :size="16" />
+              API 自动发现
+              <span v-if="apiDiscovery" class="badge"
+                >{{ apiDiscovery.projectType }} · {{ discoveredRequests.length }}</span
+              >
+            </div>
+            <div class="toolbar">
+              <button
+                class="button secondary compact-button"
+                type="button"
+                :disabled="scanningApis || !selectedProject"
+                @click="discoverProjectApis"
+              >
+                {{ scanningApis ? '扫描中' : '扫描当前项目' }}
+              </button>
+              <button
+                class="button secondary compact-button"
+                type="button"
+                :disabled="importingOpenApi"
+                @click="loadOpenApiRequests"
+              >
+                {{ importingOpenApi ? '导入中' : '导入 OpenAPI' }}
+              </button>
+              <select v-model="discoveryImportMode" class="select select-compact">
+                <option value="skip">跳过重复</option>
+                <option value="overwrite">覆盖重复</option>
+              </select>
+              <button
+                class="button compact-button"
+                type="button"
+                :disabled="importingDiscoveredApis || !discoveredRequests.length"
+                @click="importDiscoveredApis"
+              >
+                {{ importingDiscoveredApis ? '导入中' : '导入扫描结果' }}
+              </button>
+            </div>
+            <div v-if="apiDiscovery" class="history-list compact-history">
+              <div
+                v-for="group in apiDiscovery.groups"
+                :key="discoveryGroupKey(group)"
+                class="list-item discovery-group"
+              >
+                <button
+                  class="plain-list-button discovery-group-header"
+                  type="button"
+                  @click="toggleDiscoveryGroup(group)"
+                >
+                  <span>
+                    <strong>{{ group.name }}</strong>
+                    <small>{{ group.sourceType }} · {{ group.requests.length }} 个接口</small>
+                  </span>
+                  <span class="badge">{{ isDiscoveryGroupCollapsed(group) ? '展开' : '收起' }}</span>
+                </button>
+                <div v-if="!isDiscoveryGroupCollapsed(group)" class="stack discovery-group-list">
+                  <button
+                    v-for="item in group.requests"
+                    :key="item.id"
+                    class="plain-list-button discovered-api-button"
+                    type="button"
+                    @click="loadDiscoveredRequest(item)"
+                  >
+                    <strong>{{ item.method }} {{ item.url }}</strong>
+                    <small>{{ item.sourcePath }} · 置信度 {{ item.confidence }}%</small>
+                  </button>
+                </div>
+              </div>
+              <div v-for="warning in apiDiscovery.warnings" :key="warning" class="badge warning">{{ warning }}</div>
+            </div>
+            <div v-else class="empty-state compact-empty">选择项目后扫描 Controller、fetch 或 axios 调用</div>
+          </div>
+
           <div class="field">
-            <label>环境变量</label>
+            <div class="meta-row">
+              <label>环境变量</label>
+              <span class="badge">{{ selectedProjectLabel }}</span>
+            </div>
             <div class="header-list">
               <div v-for="(item, index) in envVars" :key="index" class="header-row">
                 <input v-model="item.key" class="input" placeholder="baseUrl" @blur="persistState" />
@@ -515,13 +986,24 @@ onMounted(() => {
           </div>
 
           <div class="field">
-            <label for="auth-mode">认证模板</label>
-            <select id="auth-mode" v-model="authMode" class="select">
-              <option value="none">无认证</option>
-              <option value="bearer">Bearer Token</option>
-              <option value="basic">Basic Auth</option>
-            </select>
-            <input v-if="authMode === 'bearer'" v-model="authToken" class="input" type="password" placeholder="{{token}} 或 Bearer token" />
+            <label for="auth-mode">认证模式</label>
+            <div class="inline-row">
+              <select id="auth-mode" v-model="authMode" class="select">
+                <option value="none">无认证</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="basic">Basic Auth</option>
+              </select>
+              <button class="button secondary compact-button" type="button" @click="applyTokenVariable">
+                使用 token 变量
+              </button>
+            </div>
+            <input
+              v-if="authMode === 'bearer'"
+              v-model="authToken"
+              class="input"
+              type="password"
+              placeholder="{{token}} ? Bearer token"
+            />
             <div v-else-if="authMode === 'basic'" class="inline-row">
               <input v-model="basicUser" class="input" placeholder="用户名" />
               <input v-model="basicPassword" class="input" type="password" placeholder="密码" />
@@ -533,7 +1015,7 @@ onMounted(() => {
             <div class="header-list">
               <div v-for="(header, index) in headers" :key="index" class="header-row">
                 <input v-model="header.key" class="input" placeholder="Key" />
-                <input v-model="header.value" class="input" placeholder="Value 或 {{token}}" />
+                <input v-model="header.value" class="input" placeholder="Value ? {{token}}" />
                 <button class="icon-button" type="button" aria-label="删除请求头" @click="removeHeader(index)">
                   <Trash2 :size="16" />
                 </button>
@@ -547,7 +1029,50 @@ onMounted(() => {
 
           <div class="field">
             <label for="api-body">Body</label>
-            <textarea id="api-body" v-model="body" class="textarea" spellcheck="false" :disabled="['GET', 'HEAD'].includes(method)" />
+            <textarea
+              id="api-body"
+              v-model="body"
+              class="textarea"
+              spellcheck="false"
+              :disabled="['GET', 'HEAD'].includes(method)"
+            />
+          </div>
+
+          <div class="field">
+            <div class="meta-row">
+              <label>响应断言</label>
+              <span v-if="assertionSummary" class="badge" :class="assertionSummary.ok ? 'success' : 'danger'">
+                {{ assertionSummary.passed }}/{{ assertionSummary.total }}
+              </span>
+            </div>
+            <div class="assertion-list">
+              <div v-for="(item, index) in assertions" :key="index" class="assertion-row">
+                <select v-model="item.type" class="select">
+                  <option value="status">状态码</option>
+                  <option value="json-path">JSONPath 等于</option>
+                  <option value="field-exists">字段存在</option>
+                </select>
+                <input
+                  v-model="item.path"
+                  class="input"
+                  :disabled="item.type === 'status'"
+                  placeholder="data.items[0].id"
+                />
+                <input
+                  v-model="item.expected"
+                  class="input"
+                  :disabled="item.type === 'field-exists'"
+                  :placeholder="item.type === 'status' ? '200' : '期望值'"
+                />
+                <button class="icon-button" type="button" aria-label="删除断言" @click="removeAssertion(index)">
+                  <Trash2 :size="16" />
+                </button>
+              </div>
+            </div>
+            <button class="button secondary" type="button" @click="addAssertion">
+              <Plus :size="16" />
+              添加断言
+            </button>
           </div>
 
           <div class="section">
@@ -556,7 +1081,13 @@ onMounted(() => {
               最近请求
             </div>
             <div class="history-list">
-              <button v-for="item in history" :key="`${item.method}:${item.url}`" class="list-item" type="button" @click="applyHistory(item)">
+              <button
+                v-for="item in history"
+                :key="`${item.method}:${item.url}`"
+                class="list-item"
+                type="button"
+                @click="applyHistory(item)"
+              >
                 <strong>{{ item.method }} {{ item.url }}</strong>
                 <small>{{ item.at }}</small>
               </button>
@@ -567,7 +1098,14 @@ onMounted(() => {
             <div class="meta-row">
               <History :size="16" />
               AI 分析历史
-              <button class="button secondary compact-button" type="button" :disabled="!aiHistory.length" @click="clearAiHistory">清空</button>
+              <button
+                class="button secondary compact-button"
+                type="button"
+                :disabled="!aiHistory.length"
+                @click="clearAiHistory"
+              >
+                清空
+              </button>
             </div>
             <input v-model="aiHistorySearch" class="input" placeholder="搜索 AI 历史" />
             <div class="history-list compact-history">
@@ -580,7 +1118,12 @@ onMounted(() => {
                   <button class="icon-button" type="button" aria-label="查看详情" @click="viewAiHistoryItem(item)">
                     <Eye :size="16" />
                   </button>
-                  <button class="icon-button" type="button" aria-label="删除 AI 历史" @click="deleteAiHistoryItem(item.id)">
+                  <button
+                    class="icon-button"
+                    type="button"
+                    aria-label="删除 AI 历史"
+                    @click="deleteAiHistoryItem(item.id)"
+                  >
                     <Trash2 :size="16" />
                   </button>
                 </div>
@@ -592,9 +1135,14 @@ onMounted(() => {
 
         <div class="section">
           <div class="toolbar">
-            <span v-if="response?.ok" class="badge" :class="responseClass">{{ response.status }} {{ response.statusText }}</span>
+            <span v-if="response?.ok" class="badge" :class="responseClass"
+              >{{ response.status }} {{ response.statusText }}</span
+            >
             <span v-else-if="response" class="badge danger">请求失败</span>
             <span v-else class="badge">等待请求</span>
+            <span v-if="assertionSummary" class="badge" :class="assertionSummary.ok ? 'success' : 'danger'">
+              断言 {{ assertionSummary.passed }}/{{ assertionSummary.total }}
+            </span>
             <span v-if="response" class="meta-row"><Clock3 :size="15" />{{ response.durationMs }}ms</span>
             <button class="button secondary" type="button" :disabled="!response || aiLoading" @click="analyzeResponse">
               <Bot :size="16" />
@@ -607,16 +1155,71 @@ onMounted(() => {
           </div>
 
           <div class="tabs">
-            <button class="tab-button" :class="{ active: activeTab === 'body' }" type="button" @click="activeTab = 'body'">Body</button>
-            <button class="tab-button" :class="{ active: activeTab === 'headers' }" type="button" @click="activeTab = 'headers'">Headers</button>
-            <button class="tab-button" :class="{ active: activeTab === 'summary' }" type="button" @click="activeTab = 'summary'">摘要</button>
-            <button class="tab-button" :class="{ active: activeTab === 'ai' }" type="button" @click="activeTab = 'ai'">AI</button>
+            <button
+              class="tab-button"
+              :class="{ active: activeTab === 'body' }"
+              type="button"
+              @click="activeTab = 'body'"
+            >
+              Body
+            </button>
+            <button
+              class="tab-button"
+              :class="{ active: activeTab === 'headers' }"
+              type="button"
+              @click="activeTab = 'headers'"
+            >
+              Headers
+            </button>
+            <button
+              class="tab-button"
+              :class="{ active: activeTab === 'summary' }"
+              type="button"
+              @click="activeTab = 'summary'"
+            >
+              摘要
+            </button>
+            <button
+              class="tab-button"
+              :class="{ active: activeTab === 'assertions' }"
+              type="button"
+              @click="activeTab = 'assertions'"
+            >
+              断言
+            </button>
+            <button class="tab-button" :class="{ active: activeTab === 'ai' }" type="button" @click="activeTab = 'ai'">
+              AI
+            </button>
           </div>
 
           <pre v-if="response?.ok && activeTab === 'body'" class="output-box">{{ response.body }}</pre>
-          <pre v-else-if="response?.ok && activeTab === 'headers'" class="output-box">{{ JSON.stringify(response.headers, null, 2) }}</pre>
-          <pre v-else-if="response?.ok && activeTab === 'summary'" class="output-box">{{ JSON.stringify(response.metadata, null, 2) }}</pre>
-          <div v-else-if="activeTab === 'ai'" class="output-box ai-output-scroll markdown-output" v-html="renderedAiOutput"></div>
+          <pre v-else-if="response?.ok && activeTab === 'headers'" class="output-box">{{
+            JSON.stringify(response.headers, null, 2)
+          }}</pre>
+          <pre v-else-if="response?.ok && activeTab === 'summary'" class="output-box">{{
+            JSON.stringify(response.metadata, null, 2)
+          }}</pre>
+          <div v-else-if="activeTab === 'assertions'" class="output-box assertion-output">
+            <div v-if="assertionResults.length" class="history-list">
+              <div
+                v-for="item in assertionResults"
+                :key="`${item.label}:${item.message}`"
+                class="list-item assertion-result"
+              >
+                <span class="badge" :class="item.passed ? 'success' : 'danger'">{{
+                  item.passed ? '通过' : '失败'
+                }}</span>
+                <strong>{{ item.label }}</strong>
+                <small>{{ item.message }}</small>
+              </div>
+            </div>
+            <div v-else class="empty-state compact-empty">发送请求后显示断言结果</div>
+          </div>
+          <div
+            v-else-if="activeTab === 'ai'"
+            class="output-box ai-output-scroll markdown-output"
+            v-html="renderedAiOutput"
+          ></div>
           <pre v-else-if="response && !response.ok" class="output-box">{{ response.error }}</pre>
           <div v-else class="empty-state">响应结果会显示在这里</div>
         </div>
@@ -651,6 +1254,6 @@ onMounted(() => {
       </section>
     </div>
 
-    <footer class="status-bar" :class="statusType">{{ status }}</footer>
+    <footer class="status-bar" :class="statusType" role="status" aria-live="polite">{{ status }}</footer>
   </section>
 </template>

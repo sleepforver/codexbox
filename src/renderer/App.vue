@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { Bot, Braces, FolderKanban, GitBranch, Hammer, History, Map, Send, Settings, Sparkles } from 'lucide-vue-next'
 import type { WorkspaceProject } from '../shared/ipc'
@@ -17,7 +17,7 @@ const navItems = [
   { path: '/json', label: 'JSON工具', description: '格式化、压缩、校验', icon: Braces },
   { path: '/api', label: 'API测试', description: '请求调试与响应检查', icon: Send },
   { path: '/git', label: 'Git助手', description: '状态、日志、差异', icon: GitBranch },
-  { path: '/geo', label: '电力地理', description: 'GeoJSON体检与台账校验', icon: Map },
+  { path: '/geo', label: '地理数据', description: 'GeoJSON体检与数据校验', icon: Map },
   { path: '/ai-explain', label: 'AI解释代码', description: '代码理解与风险分析', icon: Bot },
   { path: '/ai-generate', label: 'AI生成代码', description: '需求转实现草稿', icon: Sparkles },
   { path: '/ai-history', label: 'AI历史中心', description: '检索、复用、导出记录', icon: History },
@@ -51,8 +51,21 @@ async function openRecentProject(): Promise<void> {
   }
 }
 
+function handleShortcut(event: KeyboardEvent): void {
+  if (!event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) return
+  const index = Number(event.key)
+  if (!Number.isInteger(index) || index < 1 || index > navItems.length) return
+  event.preventDefault()
+  void router.push(navItems[index - 1].path)
+}
+
 onMounted(() => {
   void loadRecentProjects()
+  window.addEventListener('keydown', handleShortcut)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleShortcut)
 })
 </script>
 
@@ -87,11 +100,20 @@ onMounted(() => {
           <h1>{{ currentTitle }}</h1>
         </div>
         <div class="workspace-actions">
-          <select v-model="selectedRecentProjectId" class="select select-compact recent-project-select" :disabled="!recentProjects.length">
+          <select
+            v-model="selectedRecentProjectId"
+            class="select select-compact recent-project-select"
+            :disabled="!recentProjects.length"
+          >
             <option value="">暂无项目</option>
             <option v-for="project in recentProjects" :key="project.id" :value="project.id">{{ project.name }}</option>
           </select>
-          <button class="button secondary compact-button" type="button" :disabled="!selectedRecentProjectId" @click="openRecentProject">
+          <button
+            class="button secondary compact-button"
+            type="button"
+            :disabled="!selectedRecentProjectId"
+            @click="openRecentProject"
+          >
             最近项目
           </button>
           <div class="runtime-pill">SiliconFlow + Electron + Vue</div>

@@ -5,7 +5,8 @@ import type { JsonIndent, JsonMetadata, JsonTransformMode } from '../../shared/i
 import { isJsonQueryError, isJsonTransformError } from '../ipcGuards'
 import { showToast } from '../toast'
 
-const sample = '{\n  "name": "devtools-codex",\n  "modules": ["json", "api", "git", "ai"],\n  "profile": {\n    "industry": "power-gis",\n    "enabled": true\n  }\n}'
+const sample =
+  '{\n  "name": "devtools-codex",\n  "modules": ["json", "api", "git", "ai"],\n  "profile": {\n    "industry": "general-devtools",\n    "enabled": true\n  }\n}'
 const source = ref(sample)
 const output = ref('')
 const queryPath = ref('profile.industry')
@@ -46,7 +47,10 @@ async function transform(mode: JsonTransformMode): Promise<void> {
 }
 
 async function queryJson(): Promise<void> {
-  const result = await window.devtoolsApi.json.query({ source: source.value, path: queryPath.value })
+  const result = await window.devtoolsApi.json.query({
+    source: source.value,
+    path: queryPath.value
+  })
 
   if (isJsonQueryError(result)) {
     queryOutput.value = ''
@@ -142,7 +146,7 @@ function loadSample(): void {
           <div class="field">
             <label for="json-path">路径查询</label>
             <div class="inline-row">
-              <input id="json-path" v-model="queryPath" class="input" placeholder="profile.industry 或 modules[0]" />
+              <input id="json-path" v-model="queryPath" class="input" placeholder="profile.industry ? modules[0]" />
               <button class="button secondary" type="button" @click="queryJson">
                 <Search :size="16" />
                 查询
@@ -170,15 +174,25 @@ function loadSample(): void {
           <pre v-if="queryOutput" class="code-box">{{ queryOutput }}</pre>
 
           <div v-if="metadata" class="meta-grid">
-            <div class="metric"><span>根类型</span><strong>{{ rootLabel }}</strong></div>
-            <div class="metric"><span>字符数</span><strong>{{ metadata.characters }}</strong></div>
-            <div class="metric"><span>行数</span><strong>{{ metadata.lines }}</strong></div>
-            <div class="metric"><span>顶层数量</span><strong>{{ metadata.topLevelKeys }}</strong></div>
+            <div class="metric">
+              <span>根类型</span><strong>{{ rootLabel }}</strong>
+            </div>
+            <div class="metric">
+              <span>字符数</span><strong>{{ metadata.characters }}</strong>
+            </div>
+            <div class="metric">
+              <span>行数</span><strong>{{ metadata.lines }}</strong>
+            </div>
+            <div class="metric">
+              <span>顶层数量</span><strong>{{ metadata.topLevelKeys }}</strong>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <footer class="status-bar" :class="statusType">{{ status }}</footer>
+    <footer class="status-bar" :class="statusType" role="status" aria-live="polite">
+      {{ status }}
+    </footer>
   </section>
 </template>

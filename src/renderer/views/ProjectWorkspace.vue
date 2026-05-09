@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { Download, FolderOpen, Plus, Save, Search, Trash2, Upload } from 'lucide-vue-next'
-import type { WorkspaceProject } from '../../shared/ipc'
+import type {
+  DataTransferDetail,
+  ProjectPackageImportMode,
+  ProjectPackageImportPreview,
+  WorkspaceProject
+} from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { safeLoad } from '../safeLoad'
 import { showToast } from '../toast'
@@ -17,13 +22,18 @@ const form = ref({
   description: '',
   tags: ''
 })
+const packageImportMode = ref<ProjectPackageImportMode>('overwrite')
+const packagePreview = ref<ProjectPackageImportPreview | null>(null)
+const packageImportDetails = ref<DataTransferDetail[]>([])
 
 const selectedProject = computed(() => projects.value.find((item) => item.id === selectedId.value) ?? null)
 const filteredProjects = computed(() => {
   const text = keyword.value.trim().toLowerCase()
   if (!text) return projects.value
   return projects.value.filter((item) => {
-    return [item.name, item.path, item.description, item.tags.join(' ')].some((value) => value.toLowerCase().includes(text))
+    return [item.name, item.path, item.description, item.tags.join(' ')].some((value) =>
+      value.toLowerCase().includes(text)
+    )
   })
 })
 
@@ -161,6 +171,7 @@ async function importWorkspaceProjects(): Promise<void> {
     const result = await devtoolsApi.settings.importWorkspaceProjects()
     if (!result) return
     await loadProjects()
+    packageImportDetails.value = result.details ?? []
     status.value = result.message
     statusType.value = 'success'
     showToast(status.value, 'success')
@@ -170,11 +181,30 @@ async function importWorkspaceProjects(): Promise<void> {
 }
 
 async function importProjectPackage(): Promise<void> {
-  if (!window.confirm('导入项目数据包会写入项目、AI 历史、API 请求和地理体检历史，确认继续？')) return
   try {
-    const result = await devtoolsApi.settings.importProjectPackage()
+    packagePreview.value = await devtoolsApi.settings.previewProjectPackageImport()
+    if (!packagePreview.value) return
+  } catch (error) {
+    handleError(error, '预览项目数据包失败')
+    return
+  }
+
+  const conflictText = packagePreview.value.conflictProjectNames.length
+    ? `\n冲突项目：${packagePreview.value.conflictProjectNames.join('、')}`
+    : ''
+  if (
+    !window.confirm(
+      `确认导入项目数据包？\n项目：${packagePreview.value.projectCount} 个\nAI 历史：${packagePreview.value.aiHistoryCount} 条\nAPI 请求：${packagePreview.value.apiRequestCount} 条\n地理体检：${packagePreview.value.geoAnalysisHistoryCount} 条${conflictText}`
+    )
+  ) {
+    return
+  }
+
+  try {
+    const result = await devtoolsApi.settings.importProjectPackage(packagePreview.value.path, packageImportMode.value)
     if (!result) return
     await loadProjects()
+    packageImportDetails.value = result.details ?? []
     status.value = result.message
     statusType.value = 'success'
     showToast(status.value, 'success')
@@ -230,8 +260,31 @@ onMounted(() => {
             <span class="badge">{{ projects.length }}</span>
           </div>
           <div class="toolbar">
-            <button class="button secondary compact-button" type="button" @click="exportWorkspaceProjects">导出列表</button>
-            <button class="button secondary compact-button" type="button" @click="importWorkspaceProjects">导入列表</button>
+            <button class="button secondary compact-button" type="button" @click="exportWorkspaceProjects">
+              导出列表
+            </button>
+            <button class="button secondary compact-button" type="button" @click="importWorkspaceProjects">
+              导入列表
+            </button>
+            <select v-model="packageImportMode" class="select select-compact" aria-label="项目包冲突策略">
+              <option value="overwrite">覆盖冲突</option>
+              <option value="skip">跳过冲突</option>
+              <option value="new">另存新项目</option>
+            </select>
+          </div>
+          <div v-if="packageImportDetails.length" class="section">
+            <strong>最近导入明细</strong>
+            <div class="history-list compact-history">
+              <div
+                v-for="(item, index) in packageImportDetails"
+                :key="`${index}:${item.scope}:${item.message}`"
+                class="list-item"
+              >
+                <span class="badge" :class="item.action === 'skipped' ? 'warning' : 'success'">{{ item.action }}</span>
+                <strong>{{ item.scope }}</strong>
+                <small>{{ item.message }}</small>
+              </div>
+            </div>
           </div>
           <input v-model="keyword" class="input" placeholder="搜索名称、路径、标签" />
           <div class="history-list project-list">
@@ -256,7 +309,7 @@ onMounted(() => {
         <div class="section">
           <div class="field">
             <label for="project-name">项目名称</label>
-            <input id="project-name" v-model="form.name" class="input" placeholder="例如：输电线路台账治理" />
+            <input id="project-name" v-model="form.name" class="input" placeholder="例如：后台管理系统" />
           </div>
 
           <div class="field">
@@ -272,7 +325,7 @@ onMounted(() => {
 
           <div class="field">
             <label for="project-tags">标签</label>
-            <input id="project-tags" v-model="form.tags" class="input" placeholder="电力地理, API, GeoJSON" />
+            <input id="project-tags" v-model="form.tags" class="input" placeholder="前端, API, GeoJSON" />
           </div>
 
           <div class="field">
@@ -290,7 +343,12 @@ onMounted(() => {
               <Save :size="16" />
               保存项目
             </button>
-            <button class="button secondary" type="button" :disabled="!selectedProject" @click="selectedProject && markOpened(selectedProject)">
+            <button
+              class="button secondary"
+              type="button"
+              :disabled="!selectedProject"
+              @click="selectedProject && markOpened(selectedProject)"
+            >
               标记最近使用
             </button>
             <button class="button secondary" type="button" :disabled="!selectedProject" @click="exportProjectPackage">
@@ -304,14 +362,17 @@ onMounted(() => {
           </div>
 
           <div v-if="selectedProject" class="code-box">
-            创建时间：{{ new Date(selectedProject.createdAt).toLocaleString() }}
-            更新时间：{{ new Date(selectedProject.updatedAt).toLocaleString() }}
-            最近使用：{{ selectedProject.lastOpenedAt ? new Date(selectedProject.lastOpenedAt).toLocaleString() : '暂无' }}
+            创建时间：{{ new Date(selectedProject.createdAt).toLocaleString() }} 更新时间：{{
+              new Date(selectedProject.updatedAt).toLocaleString()
+            }}
+            最近使用：{{
+              selectedProject.lastOpenedAt ? new Date(selectedProject.lastOpenedAt).toLocaleString() : '暂无'
+            }}
           </div>
         </div>
       </div>
     </div>
 
-    <footer class="status-bar" :class="statusType">{{ status }}</footer>
+    <footer class="status-bar" :class="statusType" role="status" aria-live="polite">{{ status }}</footer>
   </section>
 </template>

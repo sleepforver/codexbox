@@ -16,7 +16,9 @@ export function isAiGenerateTextError(
   return result.ok === false
 }
 
-export function isAiConnectionError(result: AiConnectionResponse): result is { ok: false; model?: string; error: string } {
+export function isAiConnectionError(
+  result: AiConnectionResponse
+): result is { ok: false; model?: string; error: string } {
   return result.ok === false
 }
 
@@ -40,7 +42,9 @@ export function isGitCommandError(result: GitCommandResponse): result is Extract
   return result.ok === false
 }
 
-export function isJsonTransformError(result: JsonTransformResponse): result is Extract<JsonTransformResponse, { ok: false }> {
+export function isJsonTransformError(
+  result: JsonTransformResponse
+): result is Extract<JsonTransformResponse, { ok: false }> {
   return result.ok === false
 }
 
