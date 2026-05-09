@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AI 开发工具箱是一款面向本地软件开发工作的桌面应用，集成项目工作区、API 调试、Git 辅助、GeoJSON 体检和 AI 代码工作流。"
+    />
+    <title>AI 开发工具箱 | 本地桌面开发工作台</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316845b'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='Arial' font-size='25' font-weight='700' fill='white'%3EAI%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="AI 开发工具箱首页">
+        <span class="brand-mark">AI</span>
+        <span>AI 开发工具箱</span>
+      </a>
+      <nav class="nav" aria-label="页面导航">
+        <a href="#features">功能</a>
+        <a href="#workflow">流程</a>
+        <a href="#download">下载</a>
+        <a href="#deploy">部署</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">本地优先的开发效率工具</p>
+          <h1>AI 开发工具箱</h1>
+          <p class="hero-lead">
+            把项目工作区、API 调试、Git 辅助、GeoJSON 体检、AI 代码解释与生成整合到一个桌面应用中，
+            让常用开发动作沉淀为可复用的本地工作流。
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#download">下载第一版</a>
+            <a class="button secondary" href="../README.md">查看操作手册</a>
+          </div>
+          <dl class="release-strip" aria-label="版本信息">
+            <div>
+              <dt>当前版本</dt>
+              <dd>0.1.0</dd>
+            </div>
+            <div>
+              <dt>运行环境</dt>
+              <dd>Windows Desktop</dd>
+            </div>
+            <div>
+              <dt>技术栈</dt>
+              <dd>Electron + Vue + SQLite</dd>
+            </div>
+          </dl>
+        </div>
+        <figure class="hero-visual">
+          <img src="./assets/hero-dashboard.png" alt="AI 开发工具箱桌面应用界面预览" />
+        </figure>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">功能模块</p>
+          <h2>覆盖开发者的日常高频操作</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <span>01</span>
+            <h3>项目工作区</h3>
+            <p>登记常用本地项目目录、业务标签和说明，并把 AI 历史、API 集合、Git 路径和地理体检记录关联到项目。</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>API 测试</h3>
+            <p>
+              发送 HTTP 请求、保存请求集合、导入 OpenAPI / Swagger，并静态扫描 Spring Controller 与 fetch / axios 调用。
+            </p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Git 助手</h3>
+            <p>查看状态、日志和 diff，支持文件级暂存，并用 AI 生成变更说明与 Commit Message。</p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>GeoJSON 体检</h3>
+            <p>检查 Feature 数量、几何类型、坐标范围、必填属性和通用质量问题，并导出 Markdown 或 JSON 报告。</p>
+          </article>
+          <article>
+            <span>05</span>
+            <h3>AI 代码工作流</h3>
+            <p>用 Prompt 模板解释代码、生成代码草稿、复制代码块，并把结果保存到统一的 AI 历史中心。</p>
+          </article>
+          <article>
+            <span>06</span>
+            <h3>本地数据维护</h3>
+            <p>SQLite 数据库存储在本机，设置页支持备份、恢复、清理历史、模板导入导出和模型连接诊断。</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="workflow" class="section split">
+        <div class="section-heading">
+          <p class="eyebrow">推荐流程</p>
+          <h2>从项目登记到结果复用</h2>
+        </div>
+        <ol class="timeline">
+          <li>
+            <strong>建立项目工作区</strong>
+            <p>先保存项目目录、标签和说明，后续模块会自动使用项目上下文。</p>
+          </li>
+          <li>
+            <strong>配置模型平台</strong>
+            <p>在设置页选择 SiliconFlow、OpenAI、DeepSeek 或 OpenAI 兼容平台，完成连接测试。</p>
+          </li>
+          <li>
+            <strong>执行开发任务</strong>
+            <p>在 API、Git、GeoJSON、AI 解释或 AI 生成模块完成具体操作。</p>
+          </li>
+          <li>
+            <strong>沉淀历史和模板</strong>
+            <p>在 AI 历史中心复用输出，把成熟 Prompt 转换为模板，并通过项目包迁移数据。</p>
+          </li>
+        </ol>
+      </section>
+
+      <section id="download" class="section download-band">
+        <div>
+          <p class="eyebrow">发布包</p>
+          <h2>第一版已经可以作为 Windows 桌面应用试用</h2>
+          <p>
+            当前仓库可生成安装版、便携版和未压缩目录版。正式公开分发时，建议把安装包上传到 GitHub Release 或 Cloudflare
+            R2，再把下载链接填入本页面。
+          </p>
+        </div>
+        <div class="download-list">
+          <a href="#" aria-disabled="true">
+            <strong>安装版</strong>
+            <span>AI 开发工具箱 Setup 0.1.0.exe</span>
+          </a>
+          <a href="#" aria-disabled="true">
+            <strong>便携版</strong>
+            <span>AI 开发工具箱 0.1.0.exe</span>
+          </a>
+        </div>
+      </section>
+
+      <section id="deploy" class="section deploy">
+        <div class="section-heading">
+          <p class="eyebrow">Cloudflare Pages</p>
+          <h2>静态官网部署方案</h2>
+        </div>
+        <div class="deploy-grid">
+          <div>
+            <h3>构建命令</h3>
+            <code>npm run build:site</code>
+          </div>
+          <div>
+            <h3>输出目录</h3>
+            <code>site/dist</code>
+          </div>
+          <div>
+            <h3>部署方式</h3>
+            <code>连接 GitHub 仓库到 Cloudflare Pages</code>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>AI 开发工具箱 0.1.0</span>
+      <a href="../README.md">操作手册</a>
+    </footer>
+  </body>
+</html>
