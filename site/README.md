@@ -2,6 +2,12 @@
 
 本目录是 `AI 开发工具箱` 的静态官网首页，可部署到 Cloudflare Pages。
 
+线上地址：
+
+```text
+https://codexbox.pages.dev
+```
+
 ## 本地构建
 
 在仓库根目录执行：
@@ -31,4 +37,4 @@ Root directory: /
 
 ## 下载链接
 
-首页当前保留了安装版和便携版下载入口占位。正式公开分发时，建议把安装包上传到 GitHub Release 或 Cloudflare R2，然后把 `site/index.html` 中 `#download` 区域的链接替换为真实地址。
+首页当前把安装版和便携版下载入口指向 `v0.1.0` GitHub Release 标签页。正式公开分发时，建议把安装包上传到该 Release，或上传到 Cloudflare R2 后替换为真实文件下载地址。

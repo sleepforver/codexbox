@@ -24,7 +24,7 @@
         <a href="#features">功能</a>
         <a href="#workflow">流程</a>
         <a href="#download">下载</a>
-        <a href="#deploy">部署</a>
+        <a href="#online">上线</a>
       </nav>
     </header>
 
@@ -39,7 +39,7 @@
           </p>
           <div class="hero-actions">
             <a class="button primary" href="#download">下载第一版</a>
-            <a class="button secondary" href="../README.md">查看操作手册</a>
+            <a class="button secondary" href="./README.md">查看操作手册</a>
           </div>
           <dl class="release-strip" aria-label="版本信息">
             <div>
@@ -132,39 +132,38 @@
           <p class="eyebrow">发布包</p>
           <h2>第一版已经可以作为 Windows 桌面应用试用</h2>
           <p>
-            当前仓库可生成安装版、便携版和未压缩目录版。正式公开分发时，建议把安装包上传到 GitHub Release 或 Cloudflare
-            R2，再把下载链接填入本页面。
+            当前版本已创建 GitHub Release 标签页。安装包和便携包生成后建议上传到该 Release，便于用户从同一入口下载。
           </p>
         </div>
         <div class="download-list">
-          <a href="#" aria-disabled="true">
+          <a href="https://github.com/sleepforver/codexbox/releases/tag/v0.1.0">
             <strong>安装版</strong>
             <span>AI 开发工具箱 Setup 0.1.0.exe</span>
           </a>
-          <a href="#" aria-disabled="true">
+          <a href="https://github.com/sleepforver/codexbox/releases/tag/v0.1.0">
             <strong>便携版</strong>
             <span>AI 开发工具箱 0.1.0.exe</span>
           </a>
         </div>
       </section>
 
-      <section id="deploy" class="section deploy">
+      <section id="online" class="section deploy">
         <div class="section-heading">
           <p class="eyebrow">Cloudflare Pages</p>
-          <h2>静态官网部署方案</h2>
+          <h2>官网已经可以在线访问</h2>
         </div>
         <div class="deploy-grid">
           <div>
-            <h3>构建命令</h3>
-            <code>npm run build:site</code>
+            <h3>访问地址</h3>
+            <code>https://codexbox.pages.dev</code>
           </div>
           <div>
-            <h3>输出目录</h3>
-            <code>site/dist</code>
+            <h3>自动部署</h3>
+            <code>main 分支推送后自动发布</code>
           </div>
           <div>
-            <h3>部署方式</h3>
-            <code>连接 GitHub 仓库到 Cloudflare Pages</code>
+            <h3>操作手册</h3>
+            <code>随站点发布到 /README.md</code>
           </div>
         </div>
       </section>
@@ -172,7 +171,7 @@
 
     <footer class="footer">
       <span>AI 开发工具箱 0.1.0</span>
-      <a href="../README.md">操作手册</a>
+      <a href="./README.md">操作手册</a>
     </footer>
   </body>
 </html>
