@@ -37,7 +37,14 @@ Root directory: /
 
 ## 下载链接
 
-首页当前把安装版和便携版下载入口指向 `v0.1.0` GitHub Release 标签页。正式公开分发时，建议把安装包上传到该 Release，或上传到 Cloudflare R2 后替换为真实文件下载地址。
+首页当前把安装版和便携版下载入口指向 `v0.1.0` GitHub Release Asset 直链。正式公开分发时，需要先把以下文件上传到该 Release：
+
+```text
+release/AI 开发工具箱 Setup 0.1.0.exe
+release/AI 开发工具箱 0.1.0.exe
+```
+
+上传完成后，用户点击首页下载按钮会直接开始下载对应 exe。
 
 ## 操作手册页面
 
