@@ -1,91 +1,104 @@
 # 发布检查清单
 
-## 配置
+当前第一版发布名称统一为：
 
-- `.env.example` 包含 SiliconFlow、OpenAI、DeepSeek 和 OpenAI 兼容平台的 API Key / Base URL 示例，不包含模型环境变量。
-- `.env` 未提交到仓库。
-- 设置页能选择模型平台，编辑 Base URL、模型和超时。
-- 设置页保存 API Key 时写入项目根目录 `.env`，不写入 SQLite。
-- 模型配置只来自设置页保存值或平台默认值，不被 `.env` 中的模型变量覆盖。
-- 测试模型连接能给出成功耗时或明确错误原因。
+```text
+AI 开发工具箱 v0.1.0 Beta
+```
 
-## 架构
+该版本按 beta / 公测试用版发布。若要发布稳定版，应先完成自动更新、签名分发、干净环境构建和 Electron E2E 回归。
 
-- IPC 注册按 JSON、API、Git、Geo、AI、Settings 模块拆分。
-- SQLite 连接、schema、迁移、仓储和维护逻辑已拆分到 `electron/main/db/`。
-- 数据库包含 `schema_version`，后续表结构变更必须通过迁移处理。
-- 导入文件、IPC 数据和入库数据使用 zod 做运行时校验。
-- 页面初始化使用 `safeLoad` / `safeLoadAll`，单个加载失败不应阻断整页可用性。
+## 环境
+
+- [ ] Node.js 使用 `22.13+` 或项目明确支持的 LTS 版本。
+- [ ] `.nvmrc` 与 `package.json` 的 `engines.node` 保持一致。
+- [ ] 发布前使用干净依赖环境执行 `npm.cmd ci`。
+- [ ] `.env.example` 包含 SiliconFlow、OpenAI、DeepSeek 和 OpenAI 兼容平台的 API Key / Base URL 示例。
+- [ ] `.env` 未提交到仓库。
+- [ ] 发布终端允许 Electron、esbuild、electron-builder 子进程执行。
+
+## 功能
+
+- [ ] 项目工作区可新增、编辑、删除和标记最近使用项目。
+- [ ] 项目工作区可导入 / 导出项目列表和项目数据包。
+- [ ] JSON 工具可格式化、压缩、校验和路径查询。
+- [ ] API 测试可发送请求、保存请求、导入 OpenAPI、扫描项目 API。
+- [ ] API 请求失败、超时、URL 非法时有明确提示。
+- [ ] Git 助手可查看状态、日志、diff、暂存、取消暂存和提交。
+- [ ] AI 解释、AI 生成、API AI 分析和 Git AI 输出可写入历史。
+- [ ] AI 历史中心可筛选、搜索、收藏、复制、删除、重新执行和转为模板。
+- [ ] 设置页可保存模型平台、Base URL、模型、API Key 和超时。
+- [ ] 设置页可备份、恢复、清理数据库，并显示数据库状态。
+- [ ] 首次启动引导可提示模型配置、默认工作目录、第一个项目和基础工具入口。
+- [ ] 首次启动引导可跳过，且不会阻塞非 AI 功能使用。
+- [ ] 跳过首次启动引导后，可在设置页重新显示引导。
 
 ## 数据
 
-- 开发环境 `data/devtools-codex.db` 能自动生成。
-- 打包环境数据库路径落在 Electron `userData/data`。
-- 设置页能显示数据库路径、schema 版本、大小、更新时间和表统计。
-- 数据库备份能生成到 `backups/`。
-- 数据库恢复后提示重启应用。
-- 清理 AI 历史、API 历史、请求集合、自定义模板前有确认提示。
-- 清理地理体检历史前有确认提示。
-- AI 历史批量清理通过主进程批量接口处理，不在前端逐条循环删除。
-
-## 工具页
-
-- 项目工作区能新增、编辑、删除和标记最近使用项目。
-- 项目工作区能导入 / 导出项目列表和项目数据包。
-- 顶部最近项目入口能打开并标记最近使用项目。
-- AI 解释、AI 生成、API 测试和 Git 助手能选择项目工作区。
-- 新增 AI 历史和 API 请求集合时能写入项目关联。
-- 左侧目录固定，右侧工作区独立滚动。
-- 有模板的页面只保留模板选择和应用，模板编辑集中在设置页。
-- AI 输出支持 Markdown 渲染和滚动查看。
-- AI 解释 / 生成 / API / Git 的历史详情能查看完整 Prompt 和输出。
-- AI 历史中心能按任务筛选、搜索、查看、复制、删除和重新执行。
-- AI 历史中心能按项目筛选和清空。
-- 地理数据体检支持基础要素、点要素、线要素和综合数据字段模板。
-- 地理数据体检结果能按项目保存、查看、删除和清空。
-- AI 生成支持复制首个代码块。
-- Git Commit Message 能从 AI 输出一键填入。
-
-## 导入导出
-
-- AI 历史可导出 JSON。
-- AI 历史可导出 Markdown。
-- Prompt 模板可导出 / 导入 JSON。
-- API 请求集合可导出 / 导入 JSON。
-- 后端 Spring Controller 可自动扫描出 API 请求并按 Controller 分组。
-- 前端项目 fetch / axios 调用可自动扫描出 API 请求并按来源文件分组。
-- API 自动发现扫描过程不应阻断界面操作，扫描完成后先预览再导入。
-- API 自动发现和导入后的请求集合都应按分组折叠展示，避免大量接口撑长页面。
-- 保存后的相对路径接口应保留 `{{baseUrl}}` 前缀，发送时再解析环境变量。
-- 项目数据包可导出 JSON。
-- 项目数据包可导入 JSON。
-- 项目列表可导入 / 导出 JSON。
-- 项目包导入前应显示预览数量和冲突项目。
-- 项目包导入冲突策略应覆盖、跳过、另存新项目三种路径。
-- GeoJSON 文件导入后应能直接分析。
-- 地理体检报告应能导出 Markdown / JSON。
-- AI 历史中心可将历史 Prompt 转为模板。
-- 导入错误能显示可理解的错误提示，格式无效时不应部分写入。
-- 空导入文件应给出明确错误提示。
-- 项目包重复导入时 AI 历史、API 请求和地理体检历史不应无限重复。
-- GeoJSON 输入为空、超出大小或要素数量上限时应给出明确错误提示。
-- 最近项目读取失败时不应阻断主界面加载。
+- [ ] 首次启动会自动创建本地 SQLite 数据库。
+- [ ] 打包环境数据库写入 Electron `userData/data`，不写入安装目录。
+- [ ] schema 版本可在设置页查看。
+- [ ] 数据库备份文件可以从 `backups/` 找到。
+- [ ] 恢复数据库后提示用户重启应用。
+- [ ] `npm.cmd test` 中的数据安全验证覆盖 schema、备份、清理和恢复基础闭环。
+- [ ] 导入文件格式无效时不会部分写入。
+- [ ] 项目包冲突策略支持覆盖、跳过和另存新项目。
 
 ## 验证命令
 
 ```powershell
 npm.cmd run typecheck
+npm.cmd run lint
 npm.cmd test
 npm.cmd run build
-```
-
-## 打包命令
-
-```powershell
+npm.cmd run build:site
+npm.cmd run verify:electron-smoke
+npm.cmd run verify:e2e
+npm.cmd run verify:packaged-smoke
 npm.cmd run pack
 npm.cmd run dist
+npm.cmd run verify:release
+npm.cmd run verify:update-feed
+npm.cmd run release:check
 ```
+
+全部命令通过后，继续人工验收安装包。
+
+其中 `npm.cmd test` 应包含 `scripts/verify-data-safety.mjs`，用于验证数据维护链路的基础可靠性。
+同时应包含 `scripts/verify-e2e-readiness.mjs`，用于确认核心页面入口和 IPC 暴露面未偏离发布范围。
+
+`npm.cmd run verify:electron-smoke` 应在 `npm.cmd run build` 之后执行，用隔离数据目录启动构建后的 Electron 应用，检查核心页面路由、导航和 preload API 后自动退出。
+
+`npm.cmd run verify:e2e` 应在 `npm.cmd run build` 之后执行，通过 Playwright Electron 做真实侧边栏点击、路由跳转、preload API、AI 无 Key 状态、设置页数据维护入口、JSON 表单、临时本地 API 请求、临时 Git 仓库操作和截图产物断言。
+
+`npm.cmd run verify:packaged-smoke` 应在 `npm.cmd run pack` 之后执行，用隔离数据目录启动 `release/win-unpacked/AI 开发工具箱.exe`，确认打包产物可以自动启动并正常退出。
+
+`npm.cmd run verify:update-feed` 应在 `npm.cmd run dist` 之后执行，用于确认 Cloudflare R2 generic feed、`latest.yml`、安装包和 blockmap 元数据可校验。
+
+## 发布包
+
+- [ ] `release/AI 开发工具箱 Setup 0.1.0.exe` 存在。
+- [ ] `release/AI 开发工具箱 0.1.0.exe` 存在。
+- [ ] `release/AI 开发工具箱 Setup 0.1.0.exe.blockmap` 存在。
+- [ ] `release/win-unpacked/AI 开发工具箱.exe` 可启动。
+- [ ] `release/release-manifest.json` 存在。
+- [ ] 安装版可安装、启动、关闭和卸载。
+- [ ] 便携版可启动并正常读写用户数据。
+- [ ] 发布包 SHA256 已由 `npm.cmd run verify:release` 记录。
+- [ ] 更新 feed 元数据已由 `npm.cmd run verify:update-feed` 校验。
+- [ ] Cloudflare R2 下载链接 HEAD 返回 200。
+
+## 官网
+
+- [ ] `site/index.html` 显示 `v0.1.0 Beta`。
+- [ ] 下载按钮指向 Cloudflare R2 安装版和便携版。
+- [ ] `npm.cmd run build:site` 后生成 `site/dist/index.html`。
+- [ ] `npm.cmd run build:site` 后生成渲染后的 `site/dist/manual.html`。
+- [ ] Cloudflare Pages 输出目录配置为 `site/dist`。
 
 ## 发布说明
 
-- 本期发布说明记录在 `docs/release-notes.md`。
+- [ ] `docs/release-notes.md` 说明当前版本为 beta。
+- [ ] README 说明安装、首次配置、数据维护、打包命令和常见问题。
+- [ ] README 说明稳定版前仍需补齐自动更新、签名分发和 E2E。
+- [ ] 官网、README、发布说明的版本命名保持一致。
