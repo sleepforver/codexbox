@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI 开发工具箱操作手册，包含安装、配置、功能模块、数据维护和发布命令说明。" />
+  <title>操作手册 | AI 开发工具箱</title>
+  <link rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316845b'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='Arial' font-size='25' font-weight='700' fill='white'%3EAI%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <header class="site-header">
+    <a class="brand" href="./index.html" aria-label="返回 AI 开发工具箱首页">
+      <span class="brand-mark">AI</span>
+      <span>AI 开发工具箱</span>
+    </a>
+    <nav class="nav" aria-label="页面导航">
+      <a href="./index.html#features">功能</a>
+      <a href="./index.html#download">下载</a>
+      <a href="./manual.html">操作手册</a>
+    </nav>
+  </header>
+  <main class="manual-page">
+    <aside class="manual-sidebar" aria-label="操作手册目录">
+      <div class="manual-sidebar-inner">
+        <strong>操作手册目录</strong>
+        <nav class="manual-toc">
+          <a class="manual-toc-link level-2" href="#版本定位">版本定位</a>
+          <a class="manual-toc-link level-3" href="#v0-1-0-beta">v0.1.0 Beta</a>
+          <a class="manual-toc-link level-2" href="#安装与启动">安装与启动</a>
+          <a class="manual-toc-link level-3" href="#使用发布包">使用发布包</a>
+          <a class="manual-toc-link level-3" href="#从源码启动">从源码启动</a>
+          <a class="manual-toc-link level-2" href="#首次配置">首次配置</a>
+          <a class="manual-toc-link level-3" href="#使用-env">使用 .env</a>
+          <a class="manual-toc-link level-3" href="#在设置页配置">在设置页配置</a>
+          <a class="manual-toc-link level-2" href="#界面导航">界面导航</a>
+          <a class="manual-toc-link level-2" href="#项目工作区">项目工作区</a>
+          <a class="manual-toc-link level-3" href="#新增项目">新增项目</a>
+          <a class="manual-toc-link level-3" href="#编辑和删除项目">编辑和删除项目</a>
+          <a class="manual-toc-link level-3" href="#项目数据包">项目数据包</a>
+          <a class="manual-toc-link level-2" href="#json-工具">JSON 工具</a>
+          <a class="manual-toc-link level-2" href="#api-测试">API 测试</a>
+          <a class="manual-toc-link level-3" href="#发送请求">发送请求</a>
+          <a class="manual-toc-link level-3" href="#保存请求">保存请求</a>
+          <a class="manual-toc-link level-3" href="#导入-openapi-swagger">导入 OpenAPI / Swagger</a>
+          <a class="manual-toc-link level-3" href="#自动发现项目-api">自动发现项目 API</a>
+          <a class="manual-toc-link level-2" href="#git-助手">Git 助手</a>
+          <a class="manual-toc-link level-2" href="#ai-代码工作流">AI 代码工作流</a>
+          <a class="manual-toc-link level-2" href="#ai-历史中心">AI 历史中心</a>
+          <a class="manual-toc-link level-2" href="#设置与数据维护">设置与数据维护</a>
+          <a class="manual-toc-link level-3" href="#模型设置">模型设置</a>
+          <a class="manual-toc-link level-3" href="#prompt-模板">Prompt 模板</a>
+          <a class="manual-toc-link level-3" href="#数据库信息">数据库信息</a>
+          <a class="manual-toc-link level-3" href="#数据库维护">数据库维护</a>
+          <a class="manual-toc-link level-2" href="#开发与发布命令">开发与发布命令</a>
+          <a class="manual-toc-link level-3" href="#本地开发">本地开发</a>
+          <a class="manual-toc-link level-3" href="#验证">验证</a>
+          <a class="manual-toc-link level-3" href="#站点构建">站点构建</a>
+          <a class="manual-toc-link level-3" href="#打包">打包</a>
+          <a class="manual-toc-link level-2" href="#发布前检查清单">发布前检查清单</a>
+          <a class="manual-toc-link level-2" href="#常见问题">常见问题</a>
+          <a class="manual-toc-link level-3" href="#ai-功能提示未配置-api-key">AI 功能提示未配置 API Key</a>
+          <a class="manual-toc-link level-3" href="#模型连接失败">模型连接失败</a>
+          <a class="manual-toc-link level-3" href="#api-自动发现结果不完整">API 自动发现结果不完整</a>
+          <a class="manual-toc-link level-3" href="#git-助手没有输出">Git 助手没有输出</a>
+          <a class="manual-toc-link level-3" href="#打包时出现-spawn-eperm">打包时出现 spawn EPERM</a>
+          <a class="manual-toc-link level-3" href="#powershell-显示中文乱码">PowerShell 显示中文乱码</a>
+        </nav>
+      </div>
+    </aside>
+    <article class="manual-content">
+      <h1>AI 开发工具箱操作手册</h1>
+      <p>
+        <code>AI 开发工具箱</code> 是一款面向本地软件开发工作的 Windows 桌面应用，基于 Electron、Vue、TypeScript 和
+        SQLite 构建。它把项目工作区、JSON 处理、API 调试、Git 辅助、AI 代码解释、AI 代码生成、AI
+        历史复用和本地数据维护整合到一个本地优先的开发工作台中。
+      </p>
+      <p>
+        当前公开版本命名为
+        <strong>v0.1.0 Beta</strong>。这个版本适合作为第一版公测版试用，不建议按长期稳定版分发给非技术用户。
+      </p>
+      <h2 id="版本定位">版本定位</h2>
+      <h3 id="v0-1-0-beta">v0.1.0 Beta</h3>
+      <p>第一版命名建议使用：</p>
+      <pre><code class="language-text">AI 开发工具箱 v0.1.0 Beta
+</code></pre>
+      <p>定位说明：</p>
+      <ul>
+        <li>面向早期试用、功能验证和真实开发场景反馈。</li>
+        <li>
+          核心模块已经形成基础闭环，但仍缺少完整的 Electron E2E
+          回归、正式自动更新、稳定版签名发布和大规模用户数据迁移验证。
+        </li>
+        <li>下载安装包后建议先在测试项目或非关键仓库中试用。</li>
+      </ul>
+      <p>不建议使用的命名：</p>
+      <ul>
+        <li><code>v1.0.0</code>：稳定性、自动更新和签名分发条件还不够。</li>
+        <li><code>正式版</code>：当前更适合 beta / 公测版定位。</li>
+        <li><code>内测版</code>：官网和 R2 下载已经具备公开试用入口，内测语义偏保守。</li>
+      </ul>
+      <h2 id="安装与启动">安装与启动</h2>
+      <h3 id="使用发布包">使用发布包</h3>
+      <p>当前 Windows 发布包包括安装版和便携版：</p>
+      <pre><code class="language-text">release/AI 开发工具箱 Setup 0.1.0.exe
+release/AI 开发工具箱 0.1.0.exe
+release/win-unpacked/AI 开发工具箱.exe
+</code></pre>
+      <ul>
+        <li><code>AI 开发工具箱 Setup 0.1.0.exe</code>：安装版，适合长期试用。</li>
+        <li><code>AI 开发工具箱 0.1.0.exe</code>：便携版，适合快速启动和临时验证。</li>
+        <li><code>release/win-unpacked/AI 开发工具箱.exe</code>：未压缩目录版，适合发布前检查。</li>
+      </ul>
+      <p>官网首页的下载按钮指向 Cloudflare R2 公网文件。点击后会直接下载对应的 Windows 安装文件。</p>
+      <h3 id="从源码启动">从源码启动</h3>
+      <p>
+        建议使用 Node.js <code>22.13+</code> 或项目依赖明确支持的 LTS 版本。Windows PowerShell 下建议使用
+        <code>npm.cmd</code>：
+      </p>
+      <pre><code class="language-powershell">npm.cmd install
+npm.cmd run dev
+</code></pre>
+      <p>
+        如果本机 Electron 或 esbuild 子进程被安全策略拦截，构建或启动可能出现
+        <code>spawn EPERM</code>。请在无文件锁、允许子进程执行的终端环境中重试。
+      </p>
+      <h2 id="首次配置">首次配置</h2>
+      <p>
+        AI 功能需要配置至少一个兼容 OpenAI Chat Completions 协议的模型平台。可以使用
+        <code>.env</code> 文件，也可以在应用的 <code>设置</code> 页面保存。
+        首次启动时，主界面会显示非阻塞式引导横幅，提示完成模型平台、默认工作目录、第一个项目和基础工具试用。可以按步骤跳转，也可以跳过引导；跳过后仍可在
+        <code>设置</code> 和 <code>项目工作区</code> 中完成同样配置，并可在设置页重新显示首次引导。
+      </p>
+      <h3 id="使用-env">使用 <code>.env</code></h3>
+      <p>复制 <code>.env.example</code> 为 <code>.env</code>，按需填写：</p>
+      <pre><code class="language-env">SILICONFLOW_API_KEY=
+          SILICONFLOW_BASE_URL=https://api.siliconflow.com/v1
+          OPENAI_API_KEY=
+          OPENAI_BASE_URL=https://api.openai.com/v1
+          DEEPSEEK_API_KEY=
+          DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+          OPENAI_COMPATIBLE_API_KEY=
+          OPENAI_COMPATIBLE_BASE_URL=https://api.example.com/v1
+          </code></pre>
+      <p>API Key 不会写入 SQLite。通过设置页保存 API Key 时，会写入项目根目录 <code>.env</code>。</p>
+      <h3 id="在设置页配置">在设置页配置</h3>
+      <ol>
+        <li>打开左侧 <code>设置</code>。</li>
+        <li>选择模型平台，例如 SiliconFlow、OpenAI、DeepSeek 或 OpenAI 兼容平台。</li>
+        <li>填写 Base URL、模型名称、API Key 和请求超时。</li>
+        <li>点击保存。</li>
+        <li>使用连接测试确认模型可用。</li>
+      </ol>
+      <h2 id="界面导航">界面导航</h2>
+      <p>应用左侧为模块导航：</p>
+      <ul>
+        <li><code>项目工作区</code>：维护本地项目目录、标签、说明和项目数据包。</li>
+        <li><code>JSON工具</code>：格式化、压缩、校验 JSON，并按路径查询字段。</li>
+        <li><code>API测试</code>：发送 HTTP 请求、保存集合、导入接口、分析响应。</li>
+        <li><code>Git助手</code>：查看状态、日志、diff，暂存文件并生成提交说明。</li>
+        <li><code>AI解释代码</code>：用 Prompt 模板解释代码并保存历史。</li>
+        <li><code>AI生成代码</code>：根据需求生成代码草稿并复制代码块。</li>
+        <li><code>AI历史中心</code>：检索、复用、收藏、导出和清理 AI 历史。</li>
+        <li><code>设置</code>：管理模型、模板、默认目录、数据库和导入导出。</li>
+      </ul>
+      <p>顶部的最近项目下拉框可以快速切换项目上下文。</p>
+      <h2 id="项目工作区">项目工作区</h2>
+      <p>项目工作区用于把 AI 历史、API 请求集合和 Git 默认目录关联到具体项目。</p>
+      <h3 id="新增项目">新增项目</h3>
+      <ol>
+        <li>打开 <code>项目工作区</code>。</li>
+        <li>点击新建或选择项目目录。</li>
+        <li>填写项目名称、目录、标签和说明。</li>
+        <li>点击 <code>保存项目</code>。</li>
+      </ol>
+      <p>保存后，该项目会出现在左侧项目列表和顶部最近项目入口中。</p>
+      <h3 id="编辑和删除项目">编辑和删除项目</h3>
+      <p>编辑项目时，在项目列表中选择项目，修改名称、目录、标签或说明后点击 <code>保存项目</code>。</p>
+      <p>删除项目时，选择项目后点击删除按钮，并在确认弹窗中确认。删除项目工作区不会删除本地源码目录。</p>
+      <h3 id="项目数据包">项目数据包</h3>
+      <p>项目数据包用于迁移项目相关数据，包括项目记录、AI 历史和 API 请求。</p>
+      <ul>
+        <li><code>导出项目包</code>：导出当前项目相关数据。</li>
+        <li><code>导入项目包</code>：导入前显示预览数量和冲突项目。</li>
+        <li>冲突策略：支持覆盖、跳过和另存新项目。</li>
+      </ul>
+      <h2 id="json-工具">JSON 工具</h2>
+      <p>JSON 工具支持格式化、压缩、校验和路径查询。</p>
+      <p>常用流程：</p>
+      <ol>
+        <li>打开 <code>JSON工具</code>。</li>
+        <li>将 JSON 粘贴到输入区。</li>
+        <li>按需点击格式化、压缩或校验。</li>
+        <li>需要查询字段时，在路径查询中输入 <code>profile.name</code>、<code>items[0].id</code> 等路径。</li>
+      </ol>
+      <p>格式错误时，状态栏会显示解析失败原因。</p>
+      <h2 id="api-测试">API 测试</h2>
+      <p>API 测试支持请求调试、环境变量、请求集合、请求历史、OpenAPI 导入和项目接口自动发现。</p>
+      <h3 id="发送请求">发送请求</h3>
+      <ol>
+        <li>打开 <code>API测试</code>。</li>
+        <li>选择项目工作区。</li>
+        <li>选择请求方法。</li>
+        <li>输入 URL。相对路径可以使用 <code>{{baseUrl}}</code> 前缀。</li>
+        <li>按需填写 Headers、Query、Body 和断言。</li>
+        <li>点击发送。</li>
+      </ol>
+      <p>响应区域会显示状态码、耗时、响应头和响应 Body。</p>
+      <h3 id="保存请求">保存请求</h3>
+      <p>完成请求配置后，填写请求名称并点击保存。保存后的请求会进入 API 请求集合，并可按分组折叠查看。</p>
+      <h3 id="导入-openapi-swagger">导入 OpenAPI / Swagger</h3>
+      <p>导入 OpenAPI / Swagger JSON 后，应用会展示接口数量和分组预览。确认后可导入为请求集合。</p>
+      <h3 id="自动发现项目-api">自动发现项目 API</h3>
+      <p>
+        先在 <code>项目工作区</code> 保存项目目录，再进入 <code>API测试</code> 选择项目并启动项目 API
+        自动扫描。应用会静态扫描后端 Spring Controller 和前端 fetch / axios 调用。
+      </p>
+      <p>自动发现以静态扫描为主，动态拼接 URL、运行时路由和深度框架约定仍需要人工复核。</p>
+      <h2 id="git-助手">Git 助手</h2>
+      <p>Git 助手用于查看仓库状态、差异、提交历史，并辅助生成变更说明和提交信息。</p>
+      <p>常用流程：</p>
+      <ol>
+        <li>打开 <code>Git助手</code>。</li>
+        <li>选择项目工作区，或手动输入 Git 仓库目录。</li>
+        <li>执行状态、日志或差异命令。</li>
+        <li>需要提交时，先暂存文件，再填写或生成 Commit Message。</li>
+        <li>提交前会弹出确认。</li>
+      </ol>
+      <p>
+        Git 路径会做越界检查，文件级暂存使用 <code>git add -- &lt;path&gt;</code>，取消暂存使用
+        <code>git restore --staged -- &lt;path&gt;</code>。
+      </p>
+      <h2 id="ai-代码工作流">AI 代码工作流</h2>
+      <p>AI 代码工作流包括 <code>AI解释代码</code>、<code>AI生成代码</code>、API 响应分析和 Git 辅助输出。</p>
+      <p>通用流程：</p>
+      <ol>
+        <li>先在设置页配置模型平台并通过连接测试。</li>
+        <li>选择项目工作区。</li>
+        <li>选择 Prompt 模板。</li>
+        <li>填写模板变量和输入内容。</li>
+        <li>执行生成。</li>
+        <li>查看 Markdown 渲染结果，必要时复制代码块或保存历史。</li>
+      </ol>
+      <p>生成过程中支持停止流式输出。没有配置 API Key 时，页面会显示明确提示。</p>
+      <h2 id="ai-历史中心">AI 历史中心</h2>
+      <p>AI 历史中心统一管理代码解释、代码生成、API 分析、Git 变更说明和 Commit Message 历史。</p>
+      <p>支持能力：</p>
+      <ul>
+        <li>按项目、任务类型、关键词和收藏状态筛选。</li>
+        <li>查看完整 Prompt 和输出。</li>
+        <li>复制 Prompt 或输出。</li>
+        <li>重新执行历史任务。</li>
+        <li>收藏或取消收藏。</li>
+        <li>将历史 Prompt 创建为模板。</li>
+        <li>删除单条历史或清空当前筛选结果。</li>
+      </ul>
+      <h2 id="设置与数据维护">设置与数据维护</h2>
+      <h3 id="模型设置">模型设置</h3>
+      <p>
+        设置页支持 SiliconFlow、OpenAI、DeepSeek 和 OpenAI 兼容平台。可配置 Base URL、模型、API Key
+        和请求超时，并执行连接测试。
+      </p>
+      <h3 id="prompt-模板">Prompt 模板</h3>
+      <p>设置页集中管理 Prompt 模板：</p>
+      <ol>
+        <li>选择任务类型。</li>
+        <li>选择已有模板或新建模板。</li>
+        <li>编辑模板名称和内容。</li>
+        <li>使用变量预览模板。</li>
+        <li>保存模板。</li>
+      </ol>
+      <p>模板变量使用双花括号，例如：</p>
+      <pre><code class="language-text">请解释以下代码：
+
+{{ code }}
+</code></pre>
+      <h3 id="数据库信息">数据库信息</h3>
+      <p>设置页会显示数据库路径、schema 版本、文件大小、更新时间和表统计。</p>
+      <p>开发环境数据库默认位于：</p>
+      <pre><code class="language-text">data/devtools-codex.db
+</code></pre>
+      <p>打包环境会使用 Electron <code>userData/data</code> 目录，避免安装目录不可写。</p>
+      <h3 id="数据库维护">数据库维护</h3>
+      <p>支持以下操作：</p>
+      <ul>
+        <li>备份数据库到 <code>backups/</code>。</li>
+        <li>从 <code>.db/.sqlite/.sqlite3</code> 文件恢复数据库。</li>
+        <li>清理 AI 历史。</li>
+        <li>清理 API 请求历史。</li>
+        <li>清理 API 请求集合。</li>
+        <li>清理自定义 Prompt 模板。</li>
+        <li>导出诊断 JSON，包含数据库路径、schema 版本、应用版本、平台信息和最近错误。</li>
+      </ul>
+      <p>
+        清理和恢复操作会先要求确认。 如果 <code>.env</code> 写入、数据库备份 / 恢复或导入 /
+        导出失败，状态栏会显示权限、文件占用或格式校验等具体原因。失败记录也会进入诊断 JSON，便于排查发布环境问题。
+      </p>
+      <h2 id="开发与发布命令">开发与发布命令</h2>
+      <h3 id="本地开发">本地开发</h3>
+      <pre><code class="language-powershell">npm.cmd install
+npm.cmd run dev
+</code></pre>
+      <h3 id="验证">验证</h3>
+      <pre><code class="language-powershell">npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd test
+npm.cmd run build
+npm.cmd run verify:electron-smoke
+npm.cmd run verify:e2e
+npm.cmd run verify:packaged-smoke
+npm.cmd run verify:release
+npm.cmd run verify:update-feed
+</code></pre>
+      <p>
+        <code>test</code> 会执行基础 smoke test、Phase 3 静态验证和数据安全验证。数据安全验证覆盖 schema
+        版本、迁移入口、数据库表结构、备份、清理和恢复的基础闭环。
+      </p>
+      <p>
+        <code>build</code> 会执行 ESLint、Prettier 检查、TypeScript 检查、Electron/Vite 构建和构建产物校验。
+        <code>verify:electron-smoke</code> 会在构建后使用隔离数据目录启动 Electron 应用，检查核心页面路由、导航和
+        preload API，页面加载完成后自动退出。 <code>verify:e2e</code> 会通过 Playwright Electron
+        启动构建后的应用，执行首次启动引导、真实侧边栏点击、路由跳转、preload API、AI 无 Key
+        状态、设置页数据维护入口、JSON 表单、临时本地 API 请求、临时 Git 仓库操作和截图产物断言。
+        <code>verify:packaged-smoke</code> 会启动
+        <code>release/win-unpacked/AI 开发工具箱.exe</code>，使用隔离数据目录验证打包产物可以自动启动并正常退出。
+        <code>verify:release</code> 会检查安装版、便携版、blockmap 和未压缩目录版，并生成
+        <code>release/release-manifest.json</code>，其中包含文件大小和 SHA256。 <code>verify:update-feed</code> 会检查
+        Cloudflare R2 generic 更新源配置，并在 <code>release/latest.yml</code> 已生成时校验安装包、blockmap
+        和更新元数据。
+      </p>
+      <h3 id="站点构建">站点构建</h3>
+      <pre><code class="language-powershell">npm.cmd run build:site
+</code></pre>
+      <p>输出目录为：</p>
+      <pre><code class="language-text">site/dist
+</code></pre>
+      <p>
+        Cloudflare Pages 可使用 <code>npm run build:site</code> 作为构建命令，<code>site/dist</code> 作为输出目录。
+      </p>
+      <h3 id="打包">打包</h3>
+      <pre><code class="language-powershell">npm.cmd run pack
+npm.cmd run dist
+npm.cmd run release:check
+</code></pre>
+      <ul>
+        <li><code>pack</code>：生成 <code>release/win-unpacked</code>。</li>
+        <li><code>dist</code>：生成安装包、便携包和 blockmap。</li>
+        <li><code>release:check</code>：执行正式打包，并校验发布产物和更新 feed 元数据。</li>
+      </ul>
+      <p>正式发包建议在干净依赖环境中执行：</p>
+      <pre><code class="language-powershell">npm.cmd ci
+npm.cmd run release:check
+</code></pre>
+      <h2 id="发布前检查清单">发布前检查清单</h2>
+      <p>发布前至少确认：</p>
+      <ul>
+        <li>[ ] Node.js 版本满足依赖要求，建议 <code>22.13+</code>。</li>
+        <li>[ ] 使用干净依赖环境执行过 <code>npm.cmd ci</code>。</li>
+        <li>[ ] <code>npm.cmd run typecheck</code> 通过。</li>
+        <li>[ ] <code>npm.cmd run lint</code> 通过。</li>
+        <li>[ ] <code>npm.cmd test</code> 通过。</li>
+        <li>[ ] <code>npm.cmd run build</code> 通过。</li>
+        <li>[ ] <code>npm.cmd run verify:electron-smoke</code> 通过。</li>
+        <li>[ ] <code>npm.cmd run verify:e2e</code> 通过。</li>
+        <li>[ ] <code>npm.cmd run verify:packaged-smoke</code> 通过。</li>
+        <li>[ ] <code>npm.cmd run build:site</code> 通过。</li>
+        <li>[ ] <code>npm.cmd run release:check</code> 通过。</li>
+        <li>[ ] <code>release/release-manifest.json</code> 已生成并记录 SHA256。</li>
+        <li>[ ] 安装版可以安装、启动、关闭和卸载。</li>
+        <li>[ ] 便携版可以启动并正常读写用户数据。</li>
+        <li>[ ] 首次启动会自动创建数据库。</li>
+        <li>[ ] 无 API Key 时页面提示清晰。</li>
+        <li>[ ] 错误 API Key、断网和超时场景有明确错误信息。</li>
+        <li>[ ] R2 下载链接返回 200，文件大小与本地产物一致。</li>
+        <li>[ ] <code>.env</code> 未提交到仓库。</li>
+        <li>[ ] 发布说明明确当前版本为 beta，暂不承诺自动更新。</li>
+      </ul>
+      <h2 id="常见问题">常见问题</h2>
+      <h3 id="ai-功能提示未配置-api-key">AI 功能提示未配置 API Key</h3>
+      <p>
+        检查 <code>.env</code> 或设置页是否填写了当前平台的 API Key。切换平台后，需要确认对应平台的 Base URL 和 Key
+        都已保存。
+      </p>
+      <h3 id="模型连接失败">模型连接失败</h3>
+      <p>检查：</p>
+      <ul>
+        <li>Base URL 是否以 <code>/v1</code> 结尾。</li>
+        <li>API Key 是否正确。</li>
+        <li>模型名称是否被当前平台支持。</li>
+        <li>网络是否能访问对应平台。</li>
+        <li>请求超时是否过短。</li>
+      </ul>
+      <h3 id="api-自动发现结果不完整">API 自动发现结果不完整</h3>
+      <p>自动发现基于静态扫描。以下情况可能需要手动补全：</p>
+      <ul>
+        <li>URL 运行时拼接。</li>
+        <li>Controller 注解经过自定义封装。</li>
+        <li>fetch / axios 调用被二次封装。</li>
+        <li>路由由框架插件动态生成。</li>
+      </ul>
+      <h3 id="git-助手没有输出">Git 助手没有输出</h3>
+      <p>
+        确认工作目录是 Git 仓库，且本机已安装 Git。项目工作区路径不一定等于 Git 仓库根目录，必要时手动填写仓库目录。
+      </p>
+      <h3 id="打包时出现-spawn-eperm">打包时出现 <code>spawn EPERM</code></h3>
+      <p>
+        这通常是安全策略、文件锁或沙箱限制导致 esbuild 子进程无法启动。请在允许子进程执行的 PowerShell 环境中运行：
+      </p>
+      <pre><code class="language-powershell">npm.cmd run dist
+</code></pre>
+      <h3 id="powershell-显示中文乱码">PowerShell 显示中文乱码</h3>
+      <p>文件本身使用 UTF-8。若 PowerShell 输出乱码，可使用支持 UTF-8 的终端，或通过编辑器查看 Markdown 文件。</p>
+    </article>
+  </main>
+  <footer class="footer">
+    <span>AI 开发工具箱 0.1.0</span>
+    <a href="./index.html">返回首页</a>
+  </footer>
+  <script>
+    ; (() => {
+      const page = document.querySelector('.manual-page')
+      const content = document.querySelector('.manual-content')
+      if (!page || !content) return
+
+      const inlineTocHeading = [...content.querySelectorAll('h2')].find(
+        (heading) => heading.textContent?.trim() === '目录'
+      )
+      if (inlineTocHeading) {
+        let cursor = inlineTocHeading.nextElementSibling
+        inlineTocHeading.remove()
+        while (cursor && cursor.tagName !== 'H2') {
+          const next = cursor.nextElementSibling
+          cursor.remove()
+          cursor = next
+        }
+      }
+
+      const used = new Map()
+      const slug = (title) => {
+        const normalized = title
+          .toLowerCase()
+          .trim()
+          .replace(/[^\p{L}\p{N}]+/gu, '-')
+          .replace(/^-+|-+$/g, '')
+        const base = normalized || 'section'
+        const next = (used.get(base) || 0) + 1
+        used.set(base, next)
+        return next === 1 ? base : base + '-' + next
+      }
+
+      const headings = [...content.querySelectorAll('h2, h3')].filter((heading) => heading.textContent?.trim())
+      const items = headings.map((heading) => {
+        if (!heading.id) heading.id = slug(heading.textContent || '')
+        return { id: heading.id, title: heading.textContent || '', level: heading.tagName === 'H3' ? 3 : 2 }
+      })
+
+      let sidebar = page.querySelector('.manual-sidebar')
+      if (!sidebar) {
+        sidebar = document.createElement('aside')
+        sidebar.className = 'manual-sidebar'
+        sidebar.setAttribute('aria-label', '操作手册目录')
+        page.insertBefore(sidebar, content)
+      }
+
+      sidebar.innerHTML =
+        '<div class="manual-sidebar-inner"><strong>操作手册目录</strong><nav class="manual-toc">' +
+        items
+          .map(
+            (item) =>
+              '<a class="manual-toc-link level-' +
+              item.level +
+              '" href="#' +
+              encodeURIComponent(item.id) +
+              '">' +
+              item.title +
+              '</a>'
+          )
+          .join('') +
+        '</nav></div>'
+    })()
+  </script>
+</body>
+
+</html>

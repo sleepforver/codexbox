@@ -294,6 +294,46 @@ h3 {
   word-break: break-word;
 }
 
+.artifact-meta {
+  display: block;
+  margin-top: 10px;
+  color: #dce8e3;
+  font-size: 13px;
+}
+
+.sha-code {
+  display: block;
+  margin-top: 8px;
+  color: #dff4ec;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.download-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 22px 0 0;
+}
+
+.download-meta div {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.download-meta dt {
+  color: #9fb7ae;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.download-meta dd {
+  margin: 5px 0 0;
+  color: #ffffff;
+  line-height: 1.45;
+}
+
 .deploy-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -330,13 +370,61 @@ code {
 }
 
 .manual-page {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 960px);
+  gap: 24px;
+  align-items: start;
   padding: clamp(36px, 6vw, 72px) clamp(20px, 5vw, 72px);
   background: #f7faf8;
 }
 
+.manual-sidebar {
+  position: sticky;
+  top: 96px;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+}
+
+.manual-sidebar-inner {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(31, 45, 50, 0.08);
+}
+
+.manual-sidebar strong {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.manual-toc {
+  display: grid;
+  gap: 4px;
+}
+
+.manual-toc-link {
+  display: block;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #3f5059;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.manual-toc-link:hover {
+  color: #0f3d2e;
+  background: #e8f3ee;
+}
+
+.manual-toc-link.level-3 {
+  padding-left: 22px;
+  color: #65747d;
+  font-size: 13px;
+}
+
 .manual-content {
-  max-width: 960px;
-  margin: 0 auto;
+  min-width: 0;
   padding: clamp(24px, 5vw, 56px);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -350,6 +438,7 @@ code {
 }
 
 .manual-content h2 {
+  scroll-margin-top: 96px;
   margin-top: 42px;
   margin-bottom: 14px;
   padding-top: 18px;
@@ -358,6 +447,7 @@ code {
 }
 
 .manual-content h3 {
+  scroll-margin-top: 96px;
   margin-top: 28px;
   color: #20313a;
 }
@@ -407,6 +497,15 @@ code {
   .feature-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .manual-page {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-sidebar {
+    position: static;
+    max-height: none;
+  }
 }
 
 @media (max-width: 680px) {
@@ -426,7 +525,8 @@ code {
   }
 
   .feature-grid,
-  .deploy-grid {
+  .deploy-grid,
+  .download-meta {
     grid-template-columns: 1fr;
   }
 

@@ -1,7 +1,7 @@
 import { app, shell } from 'electron'
 
 const defaultFeedUrl = 'https://pub-bade506d946641b0b4cbb6b345690acc.r2.dev/'
-const defaultDownloadPageUrl = 'https://codexbox.pages.dev/#download'
+const defaultDownloadPageUrl = 'https://codexbox.xyz/#download'
 
 export interface UpdateInfo {
   currentVersion: string

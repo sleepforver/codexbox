@@ -22,14 +22,15 @@
     "lint:eslint": "eslint .",
     "format": "prettier --write \"{electron,src,tests,scripts,docs,requirement}/**/*.{ts,vue,mjs,md}\" \"site/*.{mjs,md,html,css}\" \"*.{json,md,mts}\"",
     "format:check": "prettier --check \"{electron,src,tests,scripts,docs,requirement}/**/*.{ts,vue,mjs,md}\" \"site/*.{mjs,md,html,css}\" \"*.{json,md,mts}\"",
-    "test": "node tests/smoke.mjs && node scripts/verify-phase3.mjs && node scripts/verify-data-safety.mjs && node scripts/verify-e2e-readiness.mjs && node scripts/verify-update-feed.mjs",
+    "test": "node tests/smoke.mjs && node scripts/verify-phase3.mjs && node scripts/verify-data-safety.mjs && node scripts/verify-e2e-readiness.mjs && node scripts/verify-update-feed.mjs && node scripts/verify-site-release.mjs",
     "verify:build": "node scripts/verify-build.mjs",
     "verify:electron-smoke": "node scripts/verify-electron-smoke.mjs",
     "verify:e2e": "node scripts/verify-playwright-electron.mjs",
     "verify:e2e-readiness": "node scripts/verify-e2e-readiness.mjs",
     "verify:packaged-smoke": "node scripts/verify-packaged-smoke.mjs",
     "verify:release": "node scripts/verify-release-artifacts.mjs",
-    "verify:update-feed": "node scripts/verify-update-feed.mjs"
+    "verify:update-feed": "node scripts/verify-update-feed.mjs",
+    "verify:site-release": "node scripts/verify-site-release.mjs"
   },
   "build": {
     "appId": "com.codexbox.devtools",

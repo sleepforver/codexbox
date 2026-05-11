@@ -131,20 +131,48 @@
             稳定版路线已接入 Cloudflare R2 generic 更新源配置；应用内更新检查会读取同一发布
             feed，失败时可回到本页手动下载。
           </p>
+          <!-- RELEASE_SUMMARY_START -->
+          <dl class="download-meta" aria-label="发布校验信息">
+            <div>
+              <dt>发布状态</dt>
+              <dd>Beta / 可手动下载</dd>
+            </div>
+            <div>
+              <dt>系统要求</dt>
+              <dd>Windows x64，建议 Windows 10 或更高版本</dd>
+            </div>
+            <div>
+              <dt>更新策略</dt>
+              <dd>应用内检查 Cloudflare R2 feed，失败后回到官网手动下载</dd>
+            </div>
+            <div>
+              <dt>校验信息</dt>
+              <dd>构建站点后显示发布包大小和 SHA256</dd>
+            </div>
+          </dl>
+          <!-- RELEASE_SUMMARY_END -->
         </div>
         <div class="download-list">
+          <!-- RELEASE_DOWNLOADS_START -->
           <a
             href="https://pub-bade506d946641b0b4cbb6b345690acc.r2.dev/AI%20%E5%BC%80%E5%8F%91%E5%B7%A5%E5%85%B7%E7%AE%B1%20Setup%200.1.0.exe"
+            data-release-role="installer"
           >
             <strong>下载安装版</strong>
             <span>AI 开发工具箱 Setup 0.1.0.exe</span>
+            <small class="artifact-meta">构建站点后显示文件大小</small>
+            <code class="sha-code">SHA256 构建站点后显示</code>
           </a>
           <a
             href="https://pub-bade506d946641b0b4cbb6b345690acc.r2.dev/AI%20%E5%BC%80%E5%8F%91%E5%B7%A5%E5%85%B7%E7%AE%B1%200.1.0.exe"
+            data-release-role="portable"
           >
             <strong>下载便携版</strong>
             <span>AI 开发工具箱 0.1.0.exe</span>
+            <small class="artifact-meta">构建站点后显示文件大小</small>
+            <code class="sha-code">SHA256 构建站点后显示</code>
           </a>
+          <!-- RELEASE_DOWNLOADS_END -->
         </div>
       </section>
 
@@ -156,7 +184,7 @@
         <div class="deploy-grid">
           <div>
             <h3>访问地址</h3>
-            <code>https://codexbox.pages.dev</code>
+            <code>https://codexbox.xyz</code>
           </div>
           <div>
             <h3>自动部署</h3>

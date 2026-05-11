@@ -5,7 +5,7 @@
 线上地址：
 
 ```text
-https://codexbox.pages.dev
+https://codexbox.xyz
 ```
 
 ## 本地构建
