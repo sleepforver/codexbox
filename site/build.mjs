@@ -280,6 +280,10 @@ function renderReleaseSummary(manifest) {
               <dt>清单时间</dt>
               <dd>${escapeHtml(generatedAt)}</dd>
             </div>
+            <div>
+              <dt>代码签名</dt>
+              <dd>当前安装包暂未代码签名，Windows 可能显示 SmartScreen 或未知发布者提示</dd>
+            </div>
           </dl>`
 }
 

@@ -19,10 +19,15 @@ assertIncludes(template, '<!-- RELEASE_SUMMARY_END -->', 'release summary placeh
 assertIncludes(template, 'data-release-role="installer"', 'source installer download fallback')
 assertIncludes(template, 'data-release-role="portable"', 'source portable download fallback')
 assertIncludes(template, 'https://codexbox.xyz', 'custom domain in source site')
+assertIncludes(template, '暂未进行代码签名', 'unsigned installer notice in source site')
+assertIncludes(template, 'SmartScreen', 'SmartScreen notice in source site')
+assertIncludes(template, 'SHA256', 'SHA256 guidance in source site')
 assertIncludes(buildScript, 'release-manifest.json', 'release manifest read path')
 assertIncludes(buildScript, 'renderReleaseCards', 'release card renderer')
 assertIncludes(buildScript, 'SHA256', 'SHA256 rendering')
 assertIncludes(buildScript, 'Windows x64', 'system requirement rendering')
+assertIncludes(buildScript, '代码签名', 'unsigned installer summary renderer')
+assertIncludes(buildScript, 'SmartScreen', 'SmartScreen summary renderer')
 assertIncludes(buildScript, 'RELEASE_DOWNLOADS_START', 'release downloads replacement range')
 assertIncludes(buildScript, 'renderManualSidebar', 'manual sidebar renderer')
 assertIncludes(buildScript, 'stripMarkdownToc', 'manual markdown toc stripping')
@@ -50,6 +55,9 @@ if (existsSync(distIndexPath) && existsSync(manifestPath)) {
   assertIncludes(distIndex, 'Windows x64', 'system requirement in site output')
   assertIncludes(distIndex, 'Cloudflare R2 feed', 'update strategy in site output')
   assertIncludes(distIndex, 'https://codexbox.xyz', 'custom domain in site output')
+  assertIncludes(distIndex, '暂未进行代码签名', 'unsigned installer notice in site output')
+  assertIncludes(distIndex, 'SmartScreen', 'SmartScreen notice in site output')
+  assertIncludes(distIndex, 'SHA256', 'SHA256 guidance in site output')
 
   validateManualHtml(read(join(root, 'site', 'dist', 'manual.html')), 'site output manual')
 }
@@ -63,6 +71,8 @@ function validateManualHtml(manual, label) {
   assertIncludes(manual, 'manual-toc-link', `${label} toc links`)
   assertIncludes(manual, 'inlineTocHeading', `${label} runtime toc fallback`)
   assertIncludes(manual, '<h2 id=', `${label} h2 anchors`)
+  assertIncludes(manual, '暂未进行代码签名', `${label} unsigned installer notice`)
+  assertIncludes(manual, 'SmartScreen', `${label} SmartScreen notice`)
   assert.doesNotMatch(manual, /fallback|source directory|README\.md<\/code>/, `${label} should not be fallback content`)
 
   const staticSidebar = manual.match(/<aside class="manual-sidebar"[\s\S]*?<\/aside>/)?.[0] ?? ''
