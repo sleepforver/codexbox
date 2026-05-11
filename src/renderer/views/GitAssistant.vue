@@ -631,7 +631,7 @@ watch(selectedProjectId, async (id) => {
                 id="commit-message"
                 v-model="commitMessage"
                 class="input"
-                placeholder="例如：feat: 增加 GeoJSON 数据体检"
+                placeholder="例如：feat: 增加 API 响应分析"
               />
               <button
                 class="button"

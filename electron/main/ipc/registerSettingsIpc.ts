@@ -1,9 +1,9 @@
-import { dialog, ipcMain } from 'electron'
+import { app, dialog, ipcMain } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import type {
   AiHistoryItem,
   DataTransferResponse,
-  GeoAnalyzeHistoryItem,
+  DiagnosticSnapshot,
   ProjectDataPackage,
   ProjectPackageImportMode,
   ProjectPackageImportPreview
@@ -24,7 +24,6 @@ import {
   saveWorkspaceProject,
   updateAppSettings
 } from '../services/settings.js'
-import { getGeoAnalysisHistory, importGeoAnalysisHistory } from '../services/geo.js'
 import {
   aiPromptTemplateSchema,
   apiSavedRequestInputSchema,
@@ -33,7 +32,7 @@ import {
   projectPackageSchema,
   workspaceProjectSchema
 } from '../validation/schemas.js'
-import { withIpcError } from './ipcError.js'
+import { getRecentIpcErrors, withIpcError } from './ipcError.js'
 
 export function registerSettingsIpc(): void {
   ipcMain.handle('settings:get', () => readAppSettings())
@@ -47,19 +46,30 @@ export function registerSettingsIpc(): void {
   ipcMain.handle('settings:cleanupDatabase', (_event, request) =>
     withIpcError('清理数据库', () => cleanupDatabase(request))
   )
-  ipcMain.handle('settings:exportAiHistory', (_event, format) => exportAiHistory(format))
-  ipcMain.handle('settings:exportPromptTemplates', () => exportPromptTemplates())
+  ipcMain.handle('settings:exportDiagnostics', () => withIpcError('导出诊断信息', () => exportDiagnostics()))
+  ipcMain.handle('settings:exportAiHistory', (_event, format) =>
+    withIpcError('导出 AI 历史', () => exportAiHistory(format))
+  )
+  ipcMain.handle('settings:exportPromptTemplates', () =>
+    withIpcError('导出 Prompt 模板', () => exportPromptTemplates())
+  )
   ipcMain.handle('settings:importPromptTemplates', () =>
     withIpcError('导入 Prompt 模板', () => importPromptTemplates())
   )
-  ipcMain.handle('settings:exportApiRequests', () => exportApiRequests())
+  ipcMain.handle('settings:exportApiRequests', () => withIpcError('导出 API 请求集合', () => exportApiRequests()))
   ipcMain.handle('settings:importApiRequests', () => withIpcError('导入 API 请求集合', () => importApiRequests()))
-  ipcMain.handle('settings:exportWorkspaceProjects', () => exportWorkspaceProjects())
+  ipcMain.handle('settings:exportWorkspaceProjects', () =>
+    withIpcError('导出项目工作区', () => exportWorkspaceProjects())
+  )
   ipcMain.handle('settings:importWorkspaceProjects', () =>
     withIpcError('导入项目工作区', () => importWorkspaceProjects())
   )
-  ipcMain.handle('settings:exportProjectPackage', (_event, projectId) => exportProjectPackage(projectId))
-  ipcMain.handle('settings:previewProjectPackageImport', () => previewProjectPackageImport())
+  ipcMain.handle('settings:exportProjectPackage', (_event, projectId) =>
+    withIpcError('导出项目数据包', () => exportProjectPackage(projectId))
+  )
+  ipcMain.handle('settings:previewProjectPackageImport', () =>
+    withIpcError('预览项目数据包导入', () => previewProjectPackageImport())
+  )
   ipcMain.handle('settings:importProjectPackage', (_event, path, mode) =>
     withIpcError('导入项目数据包', () => importProjectPackage(path, mode))
   )
@@ -81,6 +91,41 @@ async function chooseOpenPath(filters: Electron.FileFilter[]): Promise<string | 
 
 function exportEnvelope<T>(type: string, items: T[]): string {
   return JSON.stringify({ version: 1, type, exportedAt: new Date().toISOString(), items }, null, 2)
+}
+
+async function createDiagnosticSnapshot(): Promise<DiagnosticSnapshot> {
+  const [database, settings] = await Promise.all([getDatabaseInfo(), readAppSettings()])
+  return {
+    generatedAt: new Date().toISOString(),
+    appVersion: app.getVersion(),
+    platform: {
+      os: process.platform,
+      arch: process.arch,
+      node: process.versions.node,
+      electron: process.versions.electron,
+      chrome: process.versions.chrome
+    },
+    database,
+    settings: {
+      aiProvider: settings.aiProvider,
+      model: settings.openaiModel,
+      baseURL: settings.openaiBaseURL,
+      apiKeySource: settings.apiKeySource,
+      hasApiKey: settings.hasOpenaiApiKey,
+      defaultWorkspace: settings.defaultWorkspace,
+      apiTimeoutMs: settings.apiTimeoutMs
+    },
+    recentErrors: getRecentIpcErrors()
+  }
+}
+
+async function exportDiagnostics(): Promise<DataTransferResponse | null> {
+  const path = await chooseSavePath('codexbox-diagnostics.json', [{ name: 'JSON', extensions: ['json'] }])
+  if (!path) return null
+
+  const snapshot = await createDiagnosticSnapshot()
+  writeFileSync(path, JSON.stringify(snapshot, null, 2), 'utf8')
+  return { ok: true, message: `诊断信息已导出：${path}`, count: 1 }
 }
 
 function parseImportItems(path: string, expectedType: string): unknown[] {
@@ -215,16 +260,14 @@ async function exportProjectPackage(projectId: string): Promise<DataTransferResp
   const project = (await listWorkspaceProjects()).find((item) => item.id === projectId)
   if (!project) throw new Error('项目工作区不存在')
 
-  const [aiHistory, apiRequests, geoAnalysisHistory] = await Promise.all([
+  const [aiHistory, apiRequests] = await Promise.all([
     getAiHistory(undefined, projectId),
-    getApiSavedRequests(projectId),
-    getGeoAnalysisHistory(projectId)
+    getApiSavedRequests(projectId)
   ])
   const packageData: ProjectDataPackage = {
     project,
     aiHistory,
     apiRequests,
-    geoAnalysisHistory,
     exportedAt: new Date().toISOString()
   }
   const safeName = project.name.replace(/[\\/:*?"<>|]/g, '-').slice(0, 48) || 'project'
@@ -235,7 +278,7 @@ async function exportProjectPackage(projectId: string): Promise<DataTransferResp
   return {
     ok: true,
     message: `项目数据包已导出：${path}`,
-    count: aiHistory.length + apiRequests.length + geoAnalysisHistory.length
+    count: aiHistory.length + apiRequests.length
   }
 }
 
@@ -255,7 +298,6 @@ async function previewProjectPackageImport(): Promise<ProjectPackageImportPrevie
     projectCount: packages.length,
     aiHistoryCount: packages.reduce((sum, item) => sum + item.aiHistory.length, 0),
     apiRequestCount: packages.reduce((sum, item) => sum + item.apiRequests.length, 0),
-    geoAnalysisHistoryCount: packages.reduce((sum, item) => sum + item.geoAnalysisHistory.length, 0),
     conflictProjectNames: packages.filter((item) => existingIds.has(item.project.id)).map((item) => item.project.name)
   }
 }
@@ -318,12 +360,6 @@ async function importProjectPackage(
       })
       importedCount += 1
       details.push({ scope: targetProjectName, action: 'imported', message: `API 请求：${item.name}` })
-    }
-
-    for (const item of packageData.geoAnalysisHistory as GeoAnalyzeHistoryItem[]) {
-      await importGeoAnalysisHistory({ ...item, projectId }, projectId)
-      importedCount += 1
-      details.push({ scope: targetProjectName, action: 'imported', message: `地理体检：${item.title}` })
     }
   }
 

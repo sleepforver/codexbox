@@ -10,7 +10,7 @@ import { showToast } from '../toast'
 import { showOperationError } from '../dbFeedback'
 
 const taskType: AiTaskType = 'generate-code'
-const prompt = ref('生成一个 TypeScript 函数：接收 GeoJSON FeatureCollection，统计每种 geometry type 的数量。')
+const prompt = ref('生成一个 TypeScript 函数：接收 API 响应对象，校验状态码并提取错误信息。')
 const output = ref('')
 const status = ref('正在读取 AI 配置')
 const statusType = ref<'idle' | 'success' | 'error'>('idle')

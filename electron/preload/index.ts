@@ -33,18 +33,15 @@ import type {
   GitAction,
   GitActionResponse,
   GitCommitResponse,
-  GeoAnalyzeHistoryItem,
-  GeoAnalyzeRequest,
-  GeoAnalyzeResponse,
-  GeoReportExportRequest,
-  GeoSourceFileResponse,
   JsonQueryRequest,
   JsonQueryResponse,
   JsonTransformRequest,
   JsonTransformResponse,
   ProjectPackageImportMode,
   ProjectPackageImportPreview,
-  ProjectPromptTemplateDefault
+  ProjectPromptTemplateDefault,
+  UpdateCheckResponse,
+  UpdateInfo
 } from '../../src/shared/ipc.js'
 
 function createRequestId(): string {
@@ -143,6 +140,7 @@ const devtoolsApi: DevtoolsApi = {
       ipcRenderer.invoke('settings:restoreDatabase') as Promise<DatabaseMaintenanceResponse | null>,
     cleanupDatabase: (request: DatabaseMaintenanceCleanupRequest) =>
       ipcRenderer.invoke('settings:cleanupDatabase', request) as Promise<DatabaseMaintenanceResponse>,
+    exportDiagnostics: () => ipcRenderer.invoke('settings:exportDiagnostics') as Promise<DataTransferResponse | null>,
     exportAiHistory: (format: 'json' | 'markdown') =>
       ipcRenderer.invoke('settings:exportAiHistory', format) as Promise<DataTransferResponse | null>,
     exportPromptTemplates: () =>
@@ -169,16 +167,10 @@ const devtoolsApi: DevtoolsApi = {
     delete: (id: string) => ipcRenderer.invoke('projects:delete', id) as Promise<WorkspaceProject[]>,
     markOpened: (id: string) => ipcRenderer.invoke('projects:markOpened', id) as Promise<WorkspaceProject[]>
   },
-  geo: {
-    analyze: (request: GeoAnalyzeRequest) => ipcRenderer.invoke('geo:analyze', request) as Promise<GeoAnalyzeResponse>,
-    loadSourceFile: () => ipcRenderer.invoke('geo:loadSourceFile') as Promise<GeoSourceFileResponse | null>,
-    exportReport: (request: GeoReportExportRequest, format: 'json' | 'markdown') =>
-      ipcRenderer.invoke('geo:exportReport', request, format) as Promise<DataTransferResponse | null>,
-    getHistory: (projectId?: string) =>
-      ipcRenderer.invoke('geo:getHistory', projectId) as Promise<GeoAnalyzeHistoryItem[]>,
-    deleteHistory: (id: string) => ipcRenderer.invoke('geo:deleteHistory', id) as Promise<GeoAnalyzeHistoryItem[]>,
-    clearHistory: (projectId?: string) =>
-      ipcRenderer.invoke('geo:clearHistory', projectId) as Promise<GeoAnalyzeHistoryItem[]>
+  updates: {
+    getInfo: () => ipcRenderer.invoke('updates:getInfo') as Promise<UpdateInfo>,
+    check: () => ipcRenderer.invoke('updates:check') as Promise<UpdateCheckResponse>,
+    openDownloadPage: () => ipcRenderer.invoke('updates:openDownloadPage') as Promise<{ ok: true }>
   }
 }
 

@@ -194,7 +194,7 @@ async function importProjectPackage(): Promise<void> {
     : ''
   if (
     !window.confirm(
-      `确认导入项目数据包？\n项目：${packagePreview.value.projectCount} 个\nAI 历史：${packagePreview.value.aiHistoryCount} 条\nAPI 请求：${packagePreview.value.apiRequestCount} 条\n地理体检：${packagePreview.value.geoAnalysisHistoryCount} 条${conflictText}`
+      `确认导入项目数据包？\n项目：${packagePreview.value.projectCount} 个\nAI 历史：${packagePreview.value.aiHistoryCount} 条\nAPI 请求：${packagePreview.value.apiRequestCount} 条${conflictText}`
     )
   ) {
     return
@@ -325,7 +325,7 @@ onMounted(() => {
 
           <div class="field">
             <label for="project-tags">标签</label>
-            <input id="project-tags" v-model="form.tags" class="input" placeholder="前端, API, GeoJSON" />
+            <input id="project-tags" v-model="form.tags" class="input" placeholder="前端, API, 工具链" />
           </div>
 
           <div class="field">

@@ -15,8 +15,8 @@ import type {
   WorkspaceProject,
   WorkspaceProjectSaveRequest
 } from '../../../src/shared/ipc.js'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import {
   backupDatabaseToFile,
   clearAiHistoryFromDb,
@@ -96,26 +96,46 @@ function envFilePath(): string {
   return resolve(process.cwd(), '.env')
 }
 
+function formatFileSystemError(error: unknown, target: string): string {
+  const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : ''
+  const message = error instanceof Error ? error.message : String(error)
+  if (code === 'EACCES' || code === 'EPERM') {
+    return `${target} 无法写入，请检查文件权限、杀毒软件拦截或当前用户是否有写入权限。原始错误：${message}`
+  }
+  if (code === 'EBUSY') {
+    return `${target} 正被其他程序占用，请关闭编辑器、同步工具或安全软件后重试。原始错误：${message}`
+  }
+  if (code === 'ENOENT') {
+    return `${target} 所在目录不存在或已被移动。原始错误：${message}`
+  }
+  return `${target} 写入失败。原始错误：${message}`
+}
+
 function writeEnvValues(updates: Record<string, string>): void {
   const path = envFilePath()
-  const source = existsSync(path) ? readFileSync(path, 'utf8') : ''
-  const lines = source ? source.split(/\r?\n/) : []
-  const remaining = new Map(Object.entries(updates))
-  const nextLines = lines.map((line) => {
-    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/)
-    if (!match) return line
-    const key = match[1]
-    const value = remaining.get(key)
-    if (value === undefined) return line
-    remaining.delete(key)
-    return `${key}=${value}`
-  })
+  try {
+    mkdirSync(dirname(path), { recursive: true })
+    const source = existsSync(path) ? readFileSync(path, 'utf8') : ''
+    const lines = source ? source.split(/\r?\n/) : []
+    const remaining = new Map(Object.entries(updates))
+    const nextLines = lines.map((line) => {
+      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/)
+      if (!match) return line
+      const key = match[1]
+      const value = remaining.get(key)
+      if (value === undefined) return line
+      remaining.delete(key)
+      return `${key}=${value}`
+    })
 
-  for (const [key, value] of remaining) {
-    nextLines.push(`${key}=${value}`)
+    for (const [key, value] of remaining) {
+      nextLines.push(`${key}=${value}`)
+    }
+
+    writeFileSync(path, `${nextLines.join('\n').replace(/\n+$/, '')}\n`, 'utf8')
+  } catch (error) {
+    throw new Error(formatFileSystemError(error, '.env'))
   }
-
-  writeFileSync(path, `${nextLines.join('\n').replace(/\n+$/, '')}\n`, 'utf8')
   for (const [key, value] of Object.entries(updates)) {
     process.env[key] = value
   }

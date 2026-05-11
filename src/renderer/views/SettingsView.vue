@@ -9,6 +9,8 @@ import type {
   AppSettings,
   DatabaseInfo,
   DatabaseMaintenanceCleanupRequest,
+  UpdateCheckResponse,
+  UpdateInfo,
   WorkspaceProject
 } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
@@ -75,13 +77,15 @@ const settings = ref<AppSettings>({
 const apiKey = ref('')
 const testingAi = ref(false)
 const connectionResult = ref<AiConnectionResponse | null>(null)
-const activeSettingsTab = ref<'base' | 'templates' | 'database'>('base')
+const activeSettingsTab = ref<'base' | 'templates' | 'database' | 'updates'>('base')
 const databaseInfo = ref<DatabaseInfo | null>(null)
+const updateInfo = ref<UpdateInfo | null>(null)
+const updateCheck = ref<UpdateCheckResponse | null>(null)
+const checkingUpdate = ref(false)
 const databaseCleanup = ref<Required<DatabaseMaintenanceCleanupRequest>>({
   aiHistory: true,
   apiHistory: false,
   apiSavedRequests: false,
-  geoAnalysisHistory: false,
   customPromptTemplates: false
 })
 const selectedTaskType = ref<AiTaskType>('explain-code')
@@ -150,6 +154,42 @@ async function loadDatabaseInfo(): Promise<void> {
     databaseInfo.value = await devtoolsApi.settings.getDatabaseInfo()
   } catch (error) {
     status.value = showOperationError(error, '读取数据库信息失败')
+    statusType.value = 'error'
+  }
+}
+
+async function loadUpdateInfo(): Promise<void> {
+  try {
+    updateInfo.value = await devtoolsApi.updates.getInfo()
+  } catch (error) {
+    status.value = showOperationError(error, '读取更新配置失败')
+    statusType.value = 'error'
+  }
+}
+
+async function checkForUpdates(): Promise<void> {
+  checkingUpdate.value = true
+  try {
+    const result = await devtoolsApi.updates.check()
+    updateCheck.value = result
+    status.value = result.ok ? result.message : `检查更新失败：${result.error}`
+    statusType.value = result.ok && result.status === 'available' ? 'success' : result.ok ? 'idle' : 'error'
+    showToast(status.value, result.ok ? 'success' : 'error')
+  } catch (error) {
+    status.value = showOperationError(error, '检查更新失败')
+    statusType.value = 'error'
+  } finally {
+    checkingUpdate.value = false
+  }
+}
+
+async function openDownloadPage(): Promise<void> {
+  try {
+    await devtoolsApi.updates.openDownloadPage()
+    status.value = '已打开手动下载页'
+    statusType.value = 'success'
+  } catch (error) {
+    status.value = showOperationError(error, '打开手动下载页失败')
     statusType.value = 'error'
   }
 }
@@ -263,11 +303,11 @@ function syncTemplatePreviewVariables(): void {
 
 function defaultTemplateVariableValue(name: string): string {
   const samples: Record<string, string> = {
-    code: 'function validateFeature(feature) {\n  return Boolean(feature.geometry)\n}',
-    requiredFields: 'featureId, datasetName, category, geometry',
+    code: 'function validateRecord(record) {\n  return Boolean(record.id && record.status)\n}',
+    requiredFields: 'id, name, category, status',
     requestAndResponse:
       '{\n  "request": { "method": "GET", "url": "/resources" },\n  "response": { "status": 500, "body": "Internal Server Error" }\n}',
-    diff: 'diff --git a/src/geo.ts b/src/geo.ts\n+ 增加 GeoJSON 坐标范围检查'
+    diff: 'diff --git a/src/api.ts b/src/api.ts\n+ 增加 API 响应状态检查'
   }
   return samples[name] ?? `${name} 示例值`
 }
@@ -463,6 +503,18 @@ function importApiRequests(): Promise<void> {
   return handleDataTransfer(() => devtoolsApi.settings.importApiRequests())
 }
 
+function exportDiagnostics(): Promise<void> {
+  return handleDataTransfer(() => devtoolsApi.settings.exportDiagnostics())
+}
+
+function resetOnboarding(): void {
+  localStorage.removeItem('codexbox:onboarding-dismissed')
+  window.dispatchEvent(new Event('codexbox:onboarding-reset'))
+  status.value = '首次启动引导已恢复'
+  statusType.value = 'success'
+  showToast(status.value, 'success')
+}
+
 watch(selectedTaskType, () => {
   void loadTemplates()
 })
@@ -482,6 +534,7 @@ onMounted(async () => {
     { label: '读取项目工作区', work: loadProjects },
     { label: '读取数据库信息', work: loadDatabaseInfo }
   ])
+  await loadUpdateInfo()
 })
 </script>
 
@@ -523,6 +576,14 @@ onMounted(async () => {
           @click="activeSettingsTab = 'database'"
         >
           数据维护
+        </button>
+        <button
+          class="tab-button"
+          :class="{ active: activeSettingsTab === 'updates' }"
+          type="button"
+          @click="activeSettingsTab = 'updates'"
+        >
+          更新与发布
         </button>
       </div>
 
@@ -606,6 +667,7 @@ onMounted(async () => {
           <button class="button secondary" type="button" :disabled="testingAi" @click="testAiConnection">
             {{ testingAi ? '测试中' : '测试模型连接' }}
           </button>
+          <button class="button secondary" type="button" @click="resetOnboarding">重新显示首次引导</button>
 
           <div
             v-if="connectionResult"
@@ -786,6 +848,7 @@ onMounted(async () => {
               </button>
               <button class="button secondary" type="button" @click="backupDatabase">备份</button>
               <button class="button secondary" type="button" @click="restoreDatabase">恢复</button>
+              <button class="button secondary" type="button" @click="exportDiagnostics">导出诊断</button>
             </div>
 
             <div class="field">
@@ -801,10 +864,6 @@ onMounted(async () => {
               <label class="toggle-row">
                 <input v-model="databaseCleanup.apiSavedRequests" type="checkbox" />
                 <span>API 请求集合</span>
-              </label>
-              <label class="toggle-row">
-                <input v-model="databaseCleanup.geoAnalysisHistory" type="checkbox" />
-                <span>地理体检历史</span>
               </label>
               <label class="toggle-row">
                 <input v-model="databaseCleanup.customPromptTemplates" type="checkbox" />
@@ -843,6 +902,45 @@ onMounted(async () => {
               </div>
             </div>
             <div v-if="!databaseInfo" class="empty-state compact-empty">正在读取数据库状态</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="activeSettingsTab === 'updates'" class="section settings-tab-panel">
+        <div class="meta-row">
+          <h3>更新与发布</h3>
+          <span class="badge">{{ updateInfo?.currentVersion || '读取中' }}</span>
+          <span class="badge">{{ updateInfo?.channel || 'beta' }}</span>
+        </div>
+
+        <div class="template-manager-grid">
+          <div class="section">
+            <div class="code-box">
+              Feed: {{ updateInfo?.feedFile || '正在读取' }} Download:
+              {{ updateInfo?.downloadPageUrl || '正在读取' }} Packaged:
+              {{ updateInfo?.packaged ? 'yes' : 'no' }}
+            </div>
+
+            <div class="toolbar">
+              <button class="button secondary" type="button" @click="loadUpdateInfo">
+                <RefreshCw :size="16" />
+                刷新配置
+              </button>
+              <button class="button secondary" type="button" :disabled="checkingUpdate" @click="checkForUpdates">
+                {{ checkingUpdate ? '检查中' : '检查更新' }}
+              </button>
+              <button class="button" type="button" @click="openDownloadPage">打开手动下载页</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <div v-if="updateCheck" class="code-box" :class="{ 'diagnostic-error': !updateCheck.ok }">
+              Result: {{ updateCheck.ok ? updateCheck.status : 'failed' }} Current:
+              {{ updateCheck.currentVersion }} Latest:
+              {{ updateCheck.ok ? updateCheck.latestVersion || 'unknown' : 'unknown' }} Message:
+              {{ updateCheck.ok ? updateCheck.message : updateCheck.error }}
+            </div>
+            <div v-else class="empty-state compact-empty">尚未执行更新检查</div>
           </div>
         </div>
       </div>

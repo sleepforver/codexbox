@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Bot, Braces, FolderKanban, GitBranch, Hammer, History, Map, Send, Settings, Sparkles } from 'lucide-vue-next'
-import type { WorkspaceProject } from '../shared/ipc'
+import { Bot, Braces, FolderKanban, GitBranch, Hammer, History, Send, Settings, Sparkles } from 'lucide-vue-next'
+import type { AppSettings, WorkspaceProject } from '../shared/ipc'
 import { devtoolsApi } from './devtoolsApi'
 import { routes } from './routes'
 import { showToast } from './toast'
@@ -12,12 +12,13 @@ const route = useRoute()
 const router = useRouter()
 const recentProjects = ref<WorkspaceProject[]>([])
 const selectedRecentProjectId = ref('')
+const appSettings = ref<AppSettings | null>(null)
+const onboardingDismissed = ref(localStorage.getItem('codexbox:onboarding-dismissed') === '1')
 const navItems = [
   { path: '/projects', label: '项目工作区', description: '项目目录与标签', icon: FolderKanban },
   { path: '/json', label: 'JSON工具', description: '格式化、压缩、校验', icon: Braces },
   { path: '/api', label: 'API测试', description: '请求调试与响应检查', icon: Send },
   { path: '/git', label: 'Git助手', description: '状态、日志、差异', icon: GitBranch },
-  { path: '/geo', label: '地理数据', description: 'GeoJSON体检与数据校验', icon: Map },
   { path: '/ai-explain', label: 'AI解释代码', description: '代码理解与风险分析', icon: Bot },
   { path: '/ai-generate', label: 'AI生成代码', description: '需求转实现草稿', icon: Sparkles },
   { path: '/ai-history', label: 'AI历史中心', description: '检索、复用、导出记录', icon: History },
@@ -26,6 +27,36 @@ const navItems = [
 
 const currentTitle = computed(() => {
   return routes.find((item) => item.path === route.path)?.meta?.label ?? 'AI 开发工具箱'
+})
+const onboardingSteps = computed(() => [
+  {
+    label: '配置模型平台',
+    done: Boolean(appSettings.value?.hasOpenaiApiKey),
+    action: '去设置',
+    route: '/settings'
+  },
+  {
+    label: '设置默认工作目录',
+    done: Boolean(appSettings.value?.defaultWorkspace),
+    action: '选择目录',
+    route: '/settings'
+  },
+  {
+    label: '创建第一个项目',
+    done: recentProjects.value.length > 0,
+    action: '去创建',
+    route: '/projects'
+  },
+  {
+    label: '试用基础工具',
+    done: false,
+    action: '打开 API 测试',
+    route: '/api'
+  }
+])
+const showOnboarding = computed(() => {
+  if (onboardingDismissed.value) return false
+  return onboardingSteps.value.some((item) => !item.done)
 })
 
 async function loadRecentProjects(): Promise<void> {
@@ -36,6 +67,15 @@ async function loadRecentProjects(): Promise<void> {
     recentProjects.value = []
     selectedRecentProjectId.value = ''
     showToast(error instanceof Error ? error.message : '最近项目读取失败', 'error')
+  }
+}
+
+async function loadAppSettings(): Promise<void> {
+  try {
+    appSettings.value = await devtoolsApi.settings.get()
+  } catch (error) {
+    appSettings.value = null
+    showToast(error instanceof Error ? error.message : '设置读取失败', 'error')
   }
 }
 
@@ -59,13 +99,26 @@ function handleShortcut(event: KeyboardEvent): void {
   void router.push(navItems[index - 1].path)
 }
 
+function dismissOnboarding(): void {
+  onboardingDismissed.value = true
+  localStorage.setItem('codexbox:onboarding-dismissed', '1')
+}
+
+function resetOnboarding(): void {
+  onboardingDismissed.value = false
+  localStorage.removeItem('codexbox:onboarding-dismissed')
+}
+
 onMounted(() => {
+  void loadAppSettings()
   void loadRecentProjects()
   window.addEventListener('keydown', handleShortcut)
+  window.addEventListener('codexbox:onboarding-reset', resetOnboarding)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleShortcut)
+  window.removeEventListener('codexbox:onboarding-reset', resetOnboarding)
 })
 </script>
 
@@ -119,6 +172,31 @@ onUnmounted(() => {
           <div class="runtime-pill">SiliconFlow + Electron + Vue</div>
         </div>
       </header>
+
+      <section v-if="showOnboarding" class="onboarding-panel" aria-label="首次启动引导">
+        <div class="onboarding-copy">
+          <p class="eyebrow">首次启动引导</p>
+          <h2>完成基础配置后即可开始使用</h2>
+          <p>
+            AI 配置缺失不会阻塞 JSON、API、Git 和项目工作区。需要模型能力时，先在设置页保存 API Key 并执行连接测试。
+          </p>
+        </div>
+        <div class="onboarding-steps">
+          <button
+            v-for="item in onboardingSteps"
+            :key="item.label"
+            class="onboarding-step"
+            :class="{ done: item.done }"
+            type="button"
+            @click="router.push(item.route)"
+          >
+            <span>{{ item.done ? '完成' : '待办' }}</span>
+            <strong>{{ item.label }}</strong>
+            <small>{{ item.action }}</small>
+          </button>
+        </div>
+        <button class="button secondary compact-button" type="button" @click="dismissOnboarding">跳过引导</button>
+      </section>
 
       <RouterView />
     </main>

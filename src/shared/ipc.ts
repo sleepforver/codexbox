@@ -331,7 +331,6 @@ export interface DatabaseMaintenanceCleanupRequest {
   aiHistory?: boolean
   apiHistory?: boolean
   apiSavedRequests?: boolean
-  geoAnalysisHistory?: boolean
   customPromptTemplates?: boolean
 }
 
@@ -339,6 +338,35 @@ export interface DatabaseMaintenanceResponse {
   ok: true
   message: string
   info: DatabaseInfo
+}
+
+export interface DiagnosticErrorEntry {
+  label: string
+  message: string
+  at: string
+}
+
+export interface DiagnosticSnapshot {
+  generatedAt: string
+  appVersion: string
+  platform: {
+    os: NodeJS.Platform
+    arch: string
+    node: string
+    electron?: string
+    chrome?: string
+  }
+  database: DatabaseInfo
+  settings: {
+    aiProvider: AiProvider
+    model: string
+    baseURL: string
+    apiKeySource: AppSettings['apiKeySource']
+    hasApiKey: boolean
+    defaultWorkspace: string
+    apiTimeoutMs: number
+  }
+  recentErrors: DiagnosticErrorEntry[]
 }
 
 export interface DataTransferResponse {
@@ -361,7 +389,6 @@ export interface ProjectPackageImportPreview {
   projectCount: number
   aiHistoryCount: number
   apiRequestCount: number
-  geoAnalysisHistoryCount: number
   conflictProjectNames: string[]
 }
 
@@ -369,61 +396,7 @@ export interface ProjectDataPackage {
   project: WorkspaceProject
   aiHistory: AiHistoryItem[]
   apiRequests: ApiSavedRequest[]
-  geoAnalysisHistory: GeoAnalyzeHistoryItem[]
   exportedAt: string
-}
-
-export interface GeoFeatureTypeCount {
-  type: string
-  count: number
-}
-
-export interface GeoBounds {
-  minLng: number
-  minLat: number
-  maxLng: number
-  maxLat: number
-}
-
-export interface GeoValidationIssue {
-  level: 'warning' | 'error'
-  path: string
-  message: string
-}
-
-export interface GeoAnalyzeRequest {
-  source: string
-  requiredProperties: string[]
-  projectId?: string
-  title?: string
-}
-
-export type GeoAnalyzeResponse =
-  | {
-      ok: true
-      historyId?: string
-      featureCount: number
-      geometryTypes: GeoFeatureTypeCount[]
-      bounds: GeoBounds | null
-      issues: GeoValidationIssue[]
-    }
-  | { ok: false; error: string }
-
-export interface GeoAnalyzeHistoryItem {
-  id: string
-  projectId?: string
-  title: string
-  source: string
-  requiredProperties: string[]
-  result: Extract<GeoAnalyzeResponse, { ok: true }>
-  featureCount: number
-  issueCount: number
-  createdAt: string
-}
-
-export interface GeoSourceFileResponse {
-  path: string
-  source: string
 }
 
 export interface AiContextFileResponse {
@@ -437,11 +410,32 @@ export interface ProjectPromptTemplateDefault {
   templateId: string
 }
 
-export interface GeoReportExportRequest {
-  title: string
-  projectName?: string
-  result: Extract<GeoAnalyzeResponse, { ok: true }>
+export interface UpdateInfo {
+  currentVersion: string
+  channel: 'beta' | 'stable'
+  feedUrl: string
+  feedFile: string
+  downloadPageUrl: string
+  source: 'cloudflare-r2-generic'
+  packaged: boolean
 }
+
+export type UpdateCheckResponse =
+  | {
+      ok: true
+      status: 'current' | 'available' | 'unknown'
+      currentVersion: string
+      latestVersion?: string
+      releaseDate?: string
+      downloadPageUrl: string
+      message: string
+    }
+  | {
+      ok: false
+      currentVersion: string
+      downloadPageUrl: string
+      error: string
+    }
 
 export interface DevtoolsApi {
   json: {
@@ -500,6 +494,7 @@ export interface DevtoolsApi {
     backupDatabase(): Promise<DatabaseMaintenanceResponse>
     restoreDatabase(): Promise<DatabaseMaintenanceResponse | null>
     cleanupDatabase(request: DatabaseMaintenanceCleanupRequest): Promise<DatabaseMaintenanceResponse>
+    exportDiagnostics(): Promise<DataTransferResponse | null>
     exportAiHistory(format: 'json' | 'markdown'): Promise<DataTransferResponse | null>
     exportPromptTemplates(): Promise<DataTransferResponse | null>
     importPromptTemplates(): Promise<DataTransferResponse | null>
@@ -517,12 +512,9 @@ export interface DevtoolsApi {
     delete(id: string): Promise<WorkspaceProject[]>
     markOpened(id: string): Promise<WorkspaceProject[]>
   }
-  geo: {
-    analyze(request: GeoAnalyzeRequest): Promise<GeoAnalyzeResponse>
-    loadSourceFile(): Promise<GeoSourceFileResponse | null>
-    exportReport(request: GeoReportExportRequest, format: 'json' | 'markdown'): Promise<DataTransferResponse | null>
-    getHistory(projectId?: string): Promise<GeoAnalyzeHistoryItem[]>
-    deleteHistory(id: string): Promise<GeoAnalyzeHistoryItem[]>
-    clearHistory(projectId?: string): Promise<GeoAnalyzeHistoryItem[]>
+  updates: {
+    getInfo(): Promise<UpdateInfo>
+    check(): Promise<UpdateCheckResponse>
+    openDownloadPage(): Promise<{ ok: true }>
   }
 }

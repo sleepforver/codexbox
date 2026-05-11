@@ -213,7 +213,14 @@ export function migrateSchema(db: Database): void {
     setMeta(db, 'schema_version', '7')
   }
 
-  if (currentSchemaVersion > 7) setMeta(db, 'schema_version', String(currentSchemaVersion))
+  const versionAfterFavorites = Number(getMeta(db, 'schema_version') || 7)
+
+  if (versionAfterFavorites < 8) {
+    run(db, 'DROP TABLE IF EXISTS geo_analysis_history')
+    setMeta(db, 'schema_version', '8')
+  }
+
+  if (currentSchemaVersion > 8) setMeta(db, 'schema_version', String(currentSchemaVersion))
 }
 
 function columnExists(db: Database, table: string, column: string): boolean {

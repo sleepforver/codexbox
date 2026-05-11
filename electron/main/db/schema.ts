@@ -1,6 +1,6 @@
 import type { Database } from 'sql.js'
 
-export const currentSchemaVersion = 7
+export const currentSchemaVersion = 8
 
 export function initializeSchema(db: Database): void {
   db.run(`
@@ -75,18 +75,6 @@ export function initializeSchema(db: Database): void {
       last_opened_at TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS geo_analysis_history (
-      id TEXT PRIMARY KEY,
-      project_id TEXT,
-      title TEXT NOT NULL,
-      source TEXT NOT NULL,
-      required_properties TEXT NOT NULL,
-      result TEXT NOT NULL,
-      feature_count INTEGER NOT NULL,
-      issue_count INTEGER NOT NULL,
-      created_at TEXT NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -95,6 +83,5 @@ export function initializeSchema(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_ai_history_task_created ON ai_history (task_type, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_prompt_templates_task ON ai_prompt_templates (task_type, is_builtin DESC, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workspace_projects_updated ON workspace_projects (updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_geo_analysis_project_created ON geo_analysis_history (project_id, created_at DESC);
   `)
 }

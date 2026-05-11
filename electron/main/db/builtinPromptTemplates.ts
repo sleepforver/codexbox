@@ -12,26 +12,11 @@ export const builtinPromptTemplates: Array<
     variables: ['code']
   },
   {
-    id: 'builtin-explain-geojson',
-    taskType: 'explain-code',
-    name: 'GeoJSON 数据解释',
-    content: '请解释以下 GeoJSON 或地理数据处理代码的作用，并说明数据结构、坐标处理和质量校验风险：\n\n{{code}}',
-    variables: ['code']
-  },
-  {
-    id: 'builtin-generate-geojson-validator',
-    taskType: 'generate-code',
-    name: 'GeoJSON 体检函数',
-    content:
-      '请生成一个 TypeScript 函数，用于校验 GeoJSON FeatureCollection。要求统计 geometry 类型、计算经纬度范围、检查必填属性 {{requiredFields}}，并返回结构化问题列表。',
-    variables: ['requiredFields']
-  },
-  {
     id: 'builtin-generate-dataset-checker',
     taskType: 'generate-code',
     name: '通用数据字段检查',
     content:
-      '请生成 TypeScript 代码，校验一组业务数据记录。字段包括 featureId、datasetName、category、geometry。要求输出缺失字段、重复标识和坐标异常。',
+      '请生成 TypeScript 代码，校验一组业务数据记录。字段包括 id、name、category、status。要求输出缺失字段、重复标识和非法状态。',
     variables: []
   },
   {

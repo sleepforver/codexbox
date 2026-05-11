@@ -49,34 +49,6 @@ function parseStatus(raw) {
   }
 }
 
-function collectCoordinatePairs(value, pairs) {
-  if (!Array.isArray(value)) return
-  if (
-    value.length >= 2 &&
-    typeof value[0] === 'number' &&
-    typeof value[1] === 'number' &&
-    Number.isFinite(value[0]) &&
-    Number.isFinite(value[1])
-  ) {
-    pairs.push([value[0], value[1]])
-    return
-  }
-  value.forEach((item) => collectCoordinatePairs(item, pairs))
-}
-
-function summarizeGeoJson(source) {
-  const typeCounts = new Map()
-  const issues = []
-  for (const [index, feature] of source.features.entries()) {
-    const type = feature.geometry?.type || 'Unknown'
-    typeCounts.set(type, (typeCounts.get(type) || 0) + 1)
-    const pairs = []
-    collectCoordinatePairs(feature.geometry?.coordinates, pairs)
-    if (!pairs.length) issues.push(`features[${index}]`)
-  }
-  return { typeCounts: [...typeCounts.entries()], issues }
-}
-
 function renderPromptTemplate(content, variables) {
   return content.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_match, key) => variables[key] ?? '')
 }
@@ -129,34 +101,11 @@ assert.deepEqual(status.changes, [
   { status: '??', path: 'README.md' }
 ])
 
-const geo = summarizeGeoJson({
-  type: 'FeatureCollection',
-  features: [
-    { type: 'Feature', geometry: { type: 'Point', coordinates: [120, 30] }, properties: {} },
-    {
-      type: 'Feature',
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [120, 30],
-          [121, 31]
-        ]
-      },
-      properties: {}
-    }
-  ]
-})
-assert.deepEqual(geo.typeCounts, [
-  ['Point', 1],
-  ['LineString', 1]
-])
-assert.deepEqual(geo.issues, [])
-
 const template = '请分析 {{ code }} 并关注 {{industry}}，再次检查 {{code}}。'
 assert.deepEqual(extractPromptVariables(template), ['code', 'industry'])
 assert.equal(
-  renderPromptTemplate(template, { code: 'GeoJSON 校验函数', industry: '通用开发工具' }),
-  '请分析 GeoJSON 校验函数 并关注 通用开发工具，再次检查 GeoJSON 校验函数。'
+  renderPromptTemplate(template, { code: 'API 调试函数', industry: '通用开发工具' }),
+  '请分析 API 调试函数 并关注 通用开发工具，再次检查 API 调试函数。'
 )
 
 const templatesEnvelope = exportEnvelope('prompt-templates', [

@@ -79,39 +79,6 @@ export const workspaceProjectSchema = workspaceProjectSaveSchema.extend({
   lastOpenedAt: z.string().nullable().optional()
 })
 
-export const geoAnalyzeRequestSchema = z.object({
-  source: z.string(),
-  requiredProperties: z.array(z.string()),
-  projectId: z.string().optional(),
-  title: z.string().optional()
-})
-
-export const geoAnalyzeHistoryItemSchema = z.object({
-  id: z.string(),
-  projectId: z.string().optional(),
-  title: z.string(),
-  source: z.string(),
-  requiredProperties: z.array(z.string()),
-  result: z.object({
-    ok: z.literal(true),
-    historyId: z.string().optional(),
-    featureCount: z.number(),
-    geometryTypes: z.array(z.object({ type: z.string(), count: z.number() })),
-    bounds: z
-      .object({
-        minLng: z.number(),
-        minLat: z.number(),
-        maxLng: z.number(),
-        maxLat: z.number()
-      })
-      .nullable(),
-    issues: z.array(z.object({ level: z.enum(['warning', 'error']), path: z.string(), message: z.string() }))
-  }),
-  featureCount: z.number(),
-  issueCount: z.number(),
-  createdAt: z.string()
-})
-
 export const projectPackageSchema = z.object({
   project: workspaceProjectSchema,
   aiHistory: z.array(
@@ -124,7 +91,6 @@ export const projectPackageSchema = z.object({
   apiRequests: z.array(
     apiSavedRequestInputSchema.extend({ createdAt: z.string().optional(), updatedAt: z.string().optional() })
   ),
-  geoAnalysisHistory: z.array(geoAnalyzeHistoryItemSchema),
   exportedAt: z.string().optional()
 })
 

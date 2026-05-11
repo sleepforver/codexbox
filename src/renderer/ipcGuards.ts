@@ -2,7 +2,6 @@ import type {
   AiConnectionResponse,
   AiGenerateTextResponse,
   ApiSendResponse,
-  GeoAnalyzeResponse,
   GitActionResponse,
   GitCommitResponse,
   GitCommandResponse,
@@ -49,9 +48,5 @@ export function isJsonTransformError(
 }
 
 export function isJsonQueryError(result: JsonQueryResponse): result is Extract<JsonQueryResponse, { ok: false }> {
-  return result.ok === false
-}
-
-export function isGeoAnalyzeError(result: GeoAnalyzeResponse): result is Extract<GeoAnalyzeResponse, { ok: false }> {
   return result.ok === false
 }

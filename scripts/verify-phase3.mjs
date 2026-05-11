@@ -9,7 +9,7 @@ function assertIncludes(path, text, label = text) {
   assert.ok(read(path).includes(text), `${path} missing ${label}`)
 }
 
-assertIncludes('electron/main/db/migrations.ts', "schema_version', '7", 'schema version 7 migration')
+assertIncludes('electron/main/db/migrations.ts', "schema_version', '8", 'schema version 8 migration')
 assertIncludes('electron/main/db/schema.ts', 'is_favorite INTEGER NOT NULL DEFAULT 0')
 assertIncludes('electron/main/db/schema.ts', 'PRIMARY KEY (project_id, key)')
 assertIncludes('electron/main/ipc/registerSettingsIpc.ts', 'details.push')

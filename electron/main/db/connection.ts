@@ -76,7 +76,6 @@ export function readDatabaseFileInfo(db: Database): DatabaseInfo {
     { table: 'ai_history', label: 'AI 历史', rows: tableCount(db, 'ai_history') },
     { table: 'ai_prompt_templates', label: 'Prompt 模板', rows: tableCount(db, 'ai_prompt_templates') },
     { table: 'workspace_projects', label: '项目工作区', rows: tableCount(db, 'workspace_projects') },
-    { table: 'geo_analysis_history', label: '地理体检历史', rows: tableCount(db, 'geo_analysis_history') },
     { table: 'meta', label: '数据库元信息', rows: tableCount(db, 'meta') }
   ]
 
