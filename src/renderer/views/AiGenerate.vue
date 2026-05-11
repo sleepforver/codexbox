@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Clipboard, Eye, History, RefreshCw, Sparkles, Square, Trash2 } from 'lucide-vue-next'
 import type { AiConfigResponse, AiHistoryItem, AiPromptTemplate, AiTaskType, WorkspaceProject } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
@@ -10,6 +11,7 @@ import { showToast } from '../toast'
 import { showOperationError } from '../dbFeedback'
 
 const taskType: AiTaskType = 'generate-code'
+const router = useRouter()
 const prompt = ref('生成一个 TypeScript 函数：接收 API 响应对象，校验状态码并提取错误信息。')
 const output = ref('')
 const status = ref('正在读取 AI 配置')
@@ -104,6 +106,13 @@ async function saveCurrentHistory(model: string): Promise<void> {
 }
 
 async function generateCode(): Promise<void> {
+  if (!config.value.hasApiKey) {
+    status.value = '请先在设置页配置当前模型平台 API Key，再执行 AI 生成'
+    statusType.value = 'error'
+    showToast(status.value, 'error')
+    return
+  }
+
   loading.value = true
   output.value = ''
   status.value = '生成中'
@@ -180,6 +189,10 @@ async function loadContextFile(): Promise<void> {
   templateVariables.value = { ...templateVariables.value, requiredFields: prompt.value }
   status.value = `已导入上下文文件：${file.path}`
   statusType.value = 'success'
+}
+
+async function openSettings(): Promise<void> {
+  await router.push('/settings')
 }
 
 async function copyHistoryPrompt(): Promise<void> {
@@ -375,7 +388,20 @@ watch(selectedProjectId, () => {
             v-html="renderedOutput"
           ></div>
           <div v-else class="empty-state ai-pane-fixed">
-            {{ config.hasApiKey ? '生成结果会显示在这里' : '请先在 .env 或设置页配置模型平台 API Key' }}
+            <div class="empty-action">
+              <strong>{{ config.hasApiKey ? '生成结果会显示在这里' : '尚未配置模型平台 API Key' }}</strong>
+              <span v-if="!config.hasApiKey"
+                >可以先继续使用 JSON、API、Git 等非 AI 功能；需要生成代码时请完成模型配置。</span
+              >
+              <button
+                v-if="!config.hasApiKey"
+                class="button secondary compact-button"
+                type="button"
+                @click="openSettings"
+              >
+                去设置配置
+              </button>
+            </div>
           </div>
         </div>
       </div>

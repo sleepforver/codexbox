@@ -740,6 +740,24 @@ h1 {
   text-align: center;
 }
 
+.empty-action {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 420px;
+  padding: 0 16px;
+}
+
+.empty-action strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.empty-action span {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 .compact-empty {
   min-height: 96px;
 }

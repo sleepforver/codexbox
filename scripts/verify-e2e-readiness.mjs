@@ -49,11 +49,21 @@ assertIncludes('src/renderer/views/ApiTester.vue', 'discoverRequests', 'API disc
 assertIncludes('src/renderer/views/GitAssistant.vue', 'reviewBeforeCommit', 'Git review path')
 assertIncludes('src/renderer/views/AiExplain.vue', 'loadContextFile', 'AI explain context path')
 assertIncludes('src/renderer/views/AiGenerate.vue', 'loadContextFile', 'AI generate context path')
+assertIncludes('src/renderer/views/AiExplain.vue', '尚未配置模型平台 API Key', 'AI explain no-key guidance')
+assertIncludes('src/renderer/views/AiGenerate.vue', '尚未配置模型平台 API Key', 'AI generate no-key guidance')
+assertIncludes('src/renderer/views/AiExplain.vue', 'openSettings', 'AI explain settings shortcut')
+assertIncludes('src/renderer/views/AiGenerate.vue', 'openSettings', 'AI generate settings shortcut')
 assertIncludes('package.json', '"playwright-core"', 'Playwright Electron dependency')
 assertIncludes('package.json', '"verify:e2e"', 'Playwright Electron verification command')
 assertIncludes('scripts/verify-playwright-electron.mjs', '_electron', 'Playwright Electron launcher')
 assertIncludes('scripts/verify-playwright-electron.mjs', 'CODEXBOX_E2E_USER_DATA', 'isolated Electron userData')
 assertIncludes('scripts/verify-playwright-electron.mjs', 'assertRouteNavigation', 'route click coverage')
+assertIncludes(
+  'scripts/verify-playwright-electron.mjs',
+  'assertOnboardingWorkflow',
+  'first-run onboarding click coverage'
+)
+assertIncludes('scripts/verify-playwright-electron.mjs', 'onboarding.png', 'first-run onboarding screenshot')
 assertIncludes('scripts/verify-playwright-electron.mjs', 'assertSettingsDatabasePanel', 'settings database coverage')
 assertIncludes('scripts/verify-playwright-electron.mjs', "'updates'", 'updates preload coverage')
 assertIncludes('scripts/verify-playwright-electron.mjs', 'e2e-screenshots', 'screenshot artifact path')

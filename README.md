@@ -307,7 +307,7 @@ npm.cmd run verify:update-feed
 
 `build` 会执行 ESLint、Prettier 检查、TypeScript 检查、Electron/Vite 构建和构建产物校验。
 `verify:electron-smoke` 会在构建后使用隔离数据目录启动 Electron 应用，检查核心页面路由、导航和 preload API，页面加载完成后自动退出。
-`verify:e2e` 会通过 Playwright Electron 启动构建后的应用，执行真实侧边栏点击、路由跳转、preload API、AI 无 Key 状态、设置页数据维护入口、JSON 表单、临时本地 API 请求、临时 Git 仓库操作和截图产物断言。
+`verify:e2e` 会通过 Playwright Electron 启动构建后的应用，执行首次启动引导、真实侧边栏点击、路由跳转、preload API、AI 无 Key 状态、设置页数据维护入口、JSON 表单、临时本地 API 请求、临时 Git 仓库操作和截图产物断言。
 `verify:packaged-smoke` 会启动 `release/win-unpacked/AI 开发工具箱.exe`，使用隔离数据目录验证打包产物可以自动启动并正常退出。
 `verify:release` 会检查安装版、便携版、blockmap 和未压缩目录版，并生成 `release/release-manifest.json`，其中包含文件大小和 SHA256。
 `verify:update-feed` 会检查 Cloudflare R2 generic 更新源配置，并在 `release/latest.yml` 已生成时校验安装包、blockmap 和更新元数据。

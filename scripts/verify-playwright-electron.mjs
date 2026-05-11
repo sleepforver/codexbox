@@ -52,6 +52,7 @@ try {
   await window.waitForSelector('.nav-link')
 
   await assertPreloadApi(window)
+  await assertOnboardingWorkflow(window)
   await assertRouteNavigation(window)
   await assertNoApiKeyState(window)
   await assertSettingsDatabasePanel(window)
@@ -73,6 +74,27 @@ async function assertPreloadApi(window) {
     assert.ok(apiKeys.includes(key), `preload API missing: ${key}`)
   }
   assert.ok(!apiKeys.includes('geo'), 'removed Geo API should not be exposed')
+}
+
+async function assertOnboardingWorkflow(window) {
+  await window.waitForSelector('.onboarding-panel')
+
+  const panelText = await window.locator('.onboarding-panel').innerText()
+  assert.match(panelText, /首次启动引导/, 'onboarding panel should expose first-run title')
+  assert.match(panelText, /AI 配置缺失不会阻塞/, 'onboarding panel should explain non-blocking AI setup')
+  assert.equal(await window.locator('.onboarding-step').count(), 4, 'onboarding should expose four steps')
+
+  await window.getByRole('button', { name: /配置模型平台/ }).click()
+  await window.waitForURL((url) => url.hash === '#/settings')
+  await window.getByRole('button', { name: '跳过引导' }).click()
+  await window.waitForFunction(() => localStorage.getItem('codexbox:onboarding-dismissed') === '1')
+  assert.equal(await window.locator('.onboarding-panel').count(), 0, 'onboarding should hide after skip')
+
+  await window.getByRole('button', { name: '重新显示首次引导' }).click()
+  await window.waitForFunction(() => localStorage.getItem('codexbox:onboarding-dismissed') === null)
+  await window.waitForSelector('.onboarding-panel')
+
+  await takeScreenshot(window, 'onboarding.png')
 }
 
 async function assertRouteNavigation(window) {
