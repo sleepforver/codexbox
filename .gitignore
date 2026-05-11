@@ -3,6 +3,8 @@ out/
 dist/
 site/dist/
 release/
+requirement/
+docs/
 data/
 .vite/
 .cache/
