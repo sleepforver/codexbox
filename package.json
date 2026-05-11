@@ -5,20 +5,31 @@
   "author": "linweiping <2076223883@qq.com>",
   "main": "out/main/index.js",
   "private": true,
+  "engines": {
+    "node": ">=22.13.0 <23",
+    "npm": ">=10.9.0"
+  },
   "scripts": {
     "dev": "set ELECTRON_RUN_AS_NODE=& electron-vite dev",
     "build": "npm run lint && electron-vite build && npm run verify:build",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
+    "release:check": "npm run dist && npm run verify:release && npm run verify:update-feed",
     "build:site": "node site/build.mjs",
     "start": "set ELECTRON_RUN_AS_NODE=& electron-vite preview",
     "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint . && npm run format:check && npm run typecheck",
     "lint:eslint": "eslint .",
-    "format": "prettier --write \"{electron,src,tests,scripts,docs}/**/*.{ts,vue,mjs,md}\" \"site/*.{mjs,md,html,css}\" \"*.{json,md,mts}\"",
-    "format:check": "prettier --check \"{electron,src,tests,scripts,docs}/**/*.{ts,vue,mjs,md}\" \"site/*.{mjs,md,html,css}\" \"*.{json,md,mts}\"",
-    "test": "node tests/smoke.mjs && node scripts/verify-phase3.mjs",
-    "verify:build": "node scripts/verify-build.mjs"
+    "format": "prettier --write \"{electron,src,tests,scripts,docs,requirement}/**/*.{ts,vue,mjs,md}\" \"site/*.{mjs,md,html,css}\" \"*.{json,md,mts}\"",
+    "format:check": "prettier --check \"{electron,src,tests,scripts,docs,requirement}/**/*.{ts,vue,mjs,md}\" \"site/*.{mjs,md,html,css}\" \"*.{json,md,mts}\"",
+    "test": "node tests/smoke.mjs && node scripts/verify-phase3.mjs && node scripts/verify-data-safety.mjs && node scripts/verify-e2e-readiness.mjs && node scripts/verify-update-feed.mjs",
+    "verify:build": "node scripts/verify-build.mjs",
+    "verify:electron-smoke": "node scripts/verify-electron-smoke.mjs",
+    "verify:e2e": "node scripts/verify-playwright-electron.mjs",
+    "verify:e2e-readiness": "node scripts/verify-e2e-readiness.mjs",
+    "verify:packaged-smoke": "node scripts/verify-packaged-smoke.mjs",
+    "verify:release": "node scripts/verify-release-artifacts.mjs",
+    "verify:update-feed": "node scripts/verify-update-feed.mjs"
   },
   "build": {
     "appId": "com.codexbox.devtools",
@@ -31,6 +42,12 @@
       "package.json"
     ],
     "asar": true,
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://pub-bade506d946641b0b4cbb6b345690acc.r2.dev/"
+      }
+    ],
     "win": {
       "target": [
         {
@@ -76,6 +93,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.9.1",
     "globals": "^17.6.0",
+    "playwright-core": "^1.58.2",
     "prettier": "^3.8.3",
     "typescript": "5.7.3",
     "typescript-eslint": "^8.59.2",
