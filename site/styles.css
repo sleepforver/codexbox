@@ -399,8 +399,19 @@ code {
 }
 
 .manual-toc {
+  display: block;
+}
+
+.manual-toc-list {
   display: grid;
   gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.manual-toc-item {
+  min-width: 0;
 }
 
 .manual-toc-link {
@@ -417,7 +428,7 @@ code {
   background: #e8f3ee;
 }
 
-.manual-toc-link.level-3 {
+.manual-toc-item.level-3 .manual-toc-link {
   padding-left: 22px;
   color: #65747d;
   font-size: 13px;

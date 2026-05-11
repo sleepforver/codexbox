@@ -74,15 +74,17 @@ function renderManualSidebar(toc) {
   const items = toc
     .map(
       (item) =>
-        `<a class="manual-toc-link level-${item.level}" href="#${escapeHtml(item.id)}">${escapeHtml(item.title)}</a>`
+        `<li class="manual-toc-item level-${item.level}"><a class="manual-toc-link" href="#${escapeHtml(item.id)}">${escapeHtml(item.title)}</a></li>`
     )
     .join('\n          ')
 
   return `<aside class="manual-sidebar" aria-label="操作手册目录">
         <div class="manual-sidebar-inner">
           <strong>操作手册目录</strong>
-          <nav class="manual-toc">
+          <nav class="manual-toc" aria-label="操作手册章节">
+          <ol class="manual-toc-list">
           ${items}
+          </ol>
           </nav>
         </div>
       </aside>`
@@ -177,20 +179,20 @@ function manualTocScript() {
         }
 
         sidebar.innerHTML =
-          '<div class="manual-sidebar-inner"><strong>操作手册目录</strong><nav class="manual-toc">' +
+          '<div class="manual-sidebar-inner"><strong>操作手册目录</strong><nav class="manual-toc" aria-label="操作手册章节"><ol class="manual-toc-list">' +
           items
             .map(
               (item) =>
-                '<a class="manual-toc-link level-' +
+                '<li class="manual-toc-item level-' +
                 item.level +
-                '" href="#' +
+                '"><a class="manual-toc-link" href="#' +
                 encodeURIComponent(item.id) +
                 '">' +
                 item.title +
-                '</a>'
+                '</a></li>'
             )
             .join('') +
-          '</nav></div>'
+          '</ol></nav></div>'
       })()`
 }
 

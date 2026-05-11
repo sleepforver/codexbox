@@ -58,6 +58,8 @@ console.log('site release verification checks passed')
 
 function validateManualHtml(manual, label) {
   assertIncludes(manual, 'manual-sidebar', `${label} sidebar`)
+  assertIncludes(manual, 'manual-toc-list', `${label} semantic toc list`)
+  assertIncludes(manual, 'manual-toc-item', `${label} semantic toc items`)
   assertIncludes(manual, 'manual-toc-link', `${label} toc links`)
   assertIncludes(manual, 'inlineTocHeading', `${label} runtime toc fallback`)
   assertIncludes(manual, '<h2 id=', `${label} h2 anchors`)
