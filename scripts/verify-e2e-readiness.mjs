@@ -13,7 +13,18 @@ function assertNotIncludes(path, text, label = text) {
   assert.ok(!read(path).includes(text), `${path} still contains ${label}`)
 }
 
-const expectedRoutes = ['/projects', '/json', '/api', '/git', '/ai-explain', '/ai-generate', '/ai-history', '/settings']
+const expectedRoutes = [
+  '/projects',
+  '/project-agents',
+  '/project-knowledge',
+  '/json',
+  '/api',
+  '/git',
+  '/ai-explain',
+  '/ai-generate',
+  '/ai-history',
+  '/settings'
+]
 const routesSource = read('src/renderer/routes.ts')
 const appSource = read('src/renderer/App.vue')
 

@@ -19,6 +19,8 @@ const gitCommandArgs: Record<GitCommand, string[]> = {
   status: ['status', '--short', '--branch'],
   log: ['log', '--pretty=format:%h%x09%an%x09%ad%x09%s', '--date=short', '-20'],
   diff: ['diff', '--stat'],
+  'raw-diff': ['diff'],
+  'staged-diff': ['diff', '--staged'],
   'file-diff': ['diff', '--']
 }
 
@@ -131,7 +133,7 @@ export async function handleGitRun(request: GitCommandRequest): Promise<GitComma
 
     return {
       ok: true,
-      command: 'diff',
+      command: request.command,
       diff: {
         summary: raw.trim() || '没有未提交差异',
         raw: raw || '没有未提交差异'

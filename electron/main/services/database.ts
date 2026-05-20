@@ -33,3 +33,28 @@ export {
   deleteWorkspaceProjectFromDb,
   markWorkspaceProjectOpenedInDb
 } from '../db/repositories/projectRepository.js'
+export {
+  listProjectTasksFromDb,
+  saveProjectTaskToDb,
+  deleteProjectTaskFromDb,
+  listProjectTaskFilesFromDb,
+  saveProjectTaskFileToDb,
+  deleteProjectTaskFileFromDb
+} from '../db/repositories/projectTaskRepository.js'
+export {
+  listProjectAgentsFromDb,
+  saveProjectAgentToDb,
+  deleteProjectAgentFromDb,
+  listAgentWorkflowRunsFromDb,
+  createAgentWorkflowPlanFromDb,
+  saveAgentWorkflowRunToDb,
+  deleteAgentWorkflowRunFromDb
+} from '../db/repositories/projectAgentRepository.js'
+export {
+  listProjectKnowledgeFromDb,
+  searchProjectKnowledgeFromDb,
+  saveProjectKnowledgeToDb,
+  deleteProjectKnowledgeFromDb,
+  toggleProjectKnowledgeFavoriteInDb
+} from '../db/repositories/projectKnowledgeRepository.js'
+export { getProjectDashboardFromDb } from '../db/repositories/projectDashboardRepository.js'

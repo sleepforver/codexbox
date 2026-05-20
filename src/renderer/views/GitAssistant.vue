@@ -14,25 +14,19 @@ import {
   Square,
   Trash2
 } from 'lucide-vue-next'
-import type {
-  AiHistoryItem,
-  AiPromptTemplate,
-  AiTaskType,
-  GitCommand,
-  GitCommandResponse,
-  WorkspaceProject
-} from '../../shared/ipc'
+import type { AiHistoryItem, AiPromptTemplate, AiTaskType, GitCommand, GitCommandResponse } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { isGitActionError, isGitCommandError, isGitCommitError } from '../ipcGuards'
 import { renderMarkdown } from '../markdown'
 import { renderPromptTemplate } from '../promptTemplates'
 import { safeLoad } from '../safeLoad'
+import { currentProjectId, loadProjectContext, projects as contextProjects } from '../stores/projectContext'
 import { showToast } from '../toast'
 import { showOperationError } from '../dbFeedback'
 
 const cwd = ref('')
-const projects = ref<WorkspaceProject[]>([])
-const selectedProjectId = ref('')
+const projects = contextProjects
+const selectedProjectId = currentProjectId
 const command = ref<Exclude<GitCommand, 'file-diff'>>('status')
 const commands: Array<{
   value: Exclude<GitCommand, 'file-diff'>
@@ -468,15 +462,13 @@ function isStaged(status: string): boolean {
 
 onMounted(async () => {
   await safeLoad('读取 Git 助手状态', async () => {
-    const [settings, projectItems, historyItems] = await Promise.all([
+    const [settings, historyItems] = await Promise.all([
       devtoolsApi.settings.get(),
-      devtoolsApi.projects.list(),
       devtoolsApi.ai.getHistory(),
+      loadProjectContext(),
       loadTemplates()
     ])
     cwd.value = settings.defaultWorkspace
-    projects.value = projectItems
-    selectedProjectId.value = selectedProjectId.value || projects.value[0]?.id || ''
     if (selectedProjectId.value) {
       cwd.value = projects.value.find((item) => item.id === selectedProjectId.value)?.path ?? cwd.value
     }

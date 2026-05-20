@@ -4,7 +4,11 @@ import { getDatabase, persist } from '../connection.js'
 import { readMany, run } from '../runtime.js'
 import { aiHistorySaveSchema, aiTaskTypeSchema } from '../../validation/schemas.js'
 
-export async function getAiHistoryFromDb(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]> {
+export async function getAiHistoryFromDb(
+  taskType?: AiTaskType,
+  projectId?: string,
+  taskId?: string
+): Promise<AiHistoryItem[]> {
   const db = await getDatabase()
   if (taskType !== undefined) aiTaskTypeSchema.parse(taskType)
   const filters: string[] = []
@@ -18,9 +22,13 @@ export async function getAiHistoryFromDb(taskType?: AiTaskType, projectId?: stri
     filters.push('project_id = ?')
     params.push(projectId)
   }
+  if (taskId) {
+    filters.push('task_id = ?')
+    params.push(taskId)
+  }
 
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
-  const limit = taskType || projectId ? 50 : 100
+  const limit = taskType || projectId || taskId ? 50 : 100
   const rows = readMany<{
     id: string
     task_type: AiTaskType
@@ -30,10 +38,13 @@ export async function getAiHistoryFromDb(taskType?: AiTaskType, projectId?: stri
     model: string
     is_favorite: number
     project_id: string | null
+    task_id: string | null
+    source_type: AiHistoryItem['sourceType'] | null
+    source_ref: string | null
     created_at: string
   }>(
     db,
-    `SELECT id, task_type, title, prompt, output, model, is_favorite, project_id, created_at
+    `SELECT id, task_type, title, prompt, output, model, is_favorite, project_id, task_id, source_type, source_ref, created_at
       FROM ai_history ${where}
       ORDER BY is_favorite DESC, created_at DESC
       LIMIT ${limit}`,
@@ -49,6 +60,9 @@ export async function getAiHistoryFromDb(taskType?: AiTaskType, projectId?: stri
     model: row.model,
     isFavorite: row.is_favorite === 1,
     projectId: row.project_id ?? undefined,
+    taskId: row.task_id ?? undefined,
+    sourceType: row.source_type ?? undefined,
+    sourceRef: row.source_ref ?? undefined,
     createdAt: row.created_at
   }))
 }
@@ -62,9 +76,22 @@ export async function saveAiHistoryToDb(request: AiHistorySaveRequest): Promise<
   run(
     db,
     `INSERT INTO ai_history
-      (id, task_type, title, prompt, output, model, is_favorite, project_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), parsed.taskType, title, parsed.prompt, parsed.output, parsed.model, 0, parsed.projectId ?? null, now]
+      (id, task_type, title, prompt, output, model, is_favorite, project_id, task_id, source_type, source_ref, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      randomUUID(),
+      parsed.taskType,
+      title,
+      parsed.prompt,
+      parsed.output,
+      parsed.model,
+      0,
+      parsed.projectId ?? null,
+      parsed.taskId ?? null,
+      parsed.sourceType ?? null,
+      parsed.sourceRef ?? null,
+      now
+    ]
   )
   persist(db)
   return getAiHistoryFromDb(parsed.taskType, parsed.projectId)
@@ -90,8 +117,8 @@ export async function importAiHistoryToDb(
   run(
     db,
     `INSERT OR REPLACE INTO ai_history
-      (id, task_type, title, prompt, output, model, is_favorite, project_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, task_type, title, prompt, output, model, is_favorite, project_id, task_id, source_type, source_ref, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       parsed.taskType,
@@ -101,6 +128,9 @@ export async function importAiHistoryToDb(
       parsed.model,
       item.isFavorite ? 1 : 0,
       parsed.projectId ?? null,
+      parsed.taskId ?? null,
+      parsed.sourceType ?? null,
+      parsed.sourceRef ?? null,
       createdAt
     ]
   )

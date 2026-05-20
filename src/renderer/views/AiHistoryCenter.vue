@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Bot, Clipboard, RefreshCw, Search, Square, Star, Trash2 } from 'lucide-vue-next'
-import type { AiHistoryItem, AiTaskType, WorkspaceProject } from '../../shared/ipc'
+import { BookOpen, Bot, Clipboard, RefreshCw, Search, Square, Star, Trash2 } from 'lucide-vue-next'
+import type { AiHistoryItem, AiTaskType, ProjectTask } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { renderMarkdown } from '../markdown'
 import { safeLoad } from '../safeLoad'
+import { currentProjectId, loadProjectContext, projects as contextProjects } from '../stores/projectContext'
 import { showToast } from '../toast'
 import { showOperationError } from '../dbFeedback'
 
@@ -18,9 +19,11 @@ const taskOptions: Array<{ value: AiTaskType | 'all'; label: string }> = [
 ]
 
 const histories = ref<AiHistoryItem[]>([])
-const projects = ref<WorkspaceProject[]>([])
+const projects = contextProjects
+const projectTasks = ref<ProjectTask[]>([])
 const selectedTaskType = ref<AiTaskType | 'all'>('all')
-const selectedProjectId = ref('')
+const selectedProjectId = currentProjectId
+const selectedProjectTaskId = ref('')
 const keyword = ref('')
 const favoriteOnly = ref(false)
 const selectedItem = ref<AiHistoryItem | null>(null)
@@ -58,17 +61,39 @@ function getProjectName(projectId?: string): string {
 }
 
 async function loadHistories(): Promise<void> {
-  histories.value = await devtoolsApi.ai.getHistory(undefined, selectedProjectId.value || undefined)
+  histories.value = await devtoolsApi.ai.getHistory(
+    undefined,
+    selectedProjectId.value || undefined,
+    selectedProjectTaskId.value || undefined
+  )
   selectedItem.value = histories.value[0] ?? null
   status.value = `已读取 ${selectedProjectLabel.value} 的 ${histories.value.length} 条 AI 历史`
   statusType.value = 'success'
 }
 
 async function loadProjects(): Promise<void> {
-  projects.value = await devtoolsApi.projects.list()
+  await loadProjectContext()
+}
+
+async function loadProjectTasks(): Promise<void> {
+  if (!selectedProjectId.value) {
+    projectTasks.value = []
+    selectedProjectTaskId.value = ''
+    return
+  }
+  projectTasks.value = await devtoolsApi.projects.listTasks({ projectId: selectedProjectId.value })
+  if (selectedProjectTaskId.value && !projectTasks.value.some((item) => item.id === selectedProjectTaskId.value)) {
+    selectedProjectTaskId.value = ''
+  }
 }
 
 async function handleProjectChange(): Promise<void> {
+  output.value = ''
+  await loadProjectTasks()
+  await loadHistories()
+}
+
+async function handleProjectTaskChange(): Promise<void> {
   output.value = ''
   await loadHistories()
 }
@@ -110,6 +135,64 @@ async function createTemplateFromSelected(): Promise<void> {
     showToast(status.value, 'success')
   } catch (error) {
     status.value = showOperationError(error, '创建 Prompt 模板失败')
+    statusType.value = 'error'
+  }
+}
+
+function getKnowledgeSourceType(item: AiHistoryItem) {
+  return item.sourceType ?? (item.taskId ? 'task' : item.projectId ? 'project' : 'manual')
+}
+
+function buildKnowledgeContent(item: AiHistoryItem): string {
+  return [
+    `# ${item.title}`,
+    '',
+    `- 来源：AI 历史`,
+    `- 任务类型：${item.taskType}`,
+    `- 模型：${item.model}`,
+    `- 创建时间：${new Date(item.createdAt).toLocaleString()}`,
+    item.taskId ? `- 关联任务：${item.taskId}` : '',
+    '',
+    '## 输出',
+    '',
+    item.output,
+    '',
+    '## Prompt',
+    '',
+    '```text',
+    item.prompt,
+    '```'
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+async function createKnowledgeFromSelected(): Promise<void> {
+  if (!selectedItem.value) return
+  const projectId = selectedItem.value.projectId ?? selectedProjectId.value
+  if (!projectId) {
+    status.value = '请先选择项目，或选择已关联项目的 AI 历史'
+    statusType.value = 'error'
+    showToast(status.value, 'error')
+    return
+  }
+
+  const title = window.prompt('请输入知识条目标题', selectedItem.value.title)
+  if (!title?.trim()) return
+  try {
+    await devtoolsApi.projects.saveKnowledge({
+      projectId,
+      title: title.trim(),
+      content: buildKnowledgeContent(selectedItem.value),
+      sourceType: getKnowledgeSourceType(selectedItem.value),
+      sourceId: selectedItem.value.id,
+      isFavorite: selectedItem.value.isFavorite
+    })
+    status.value = '已沉淀为项目知识条目'
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    status.value = showOperationError(error, '沉淀项目知识失败')
     statusType.value = 'error'
   }
 }
@@ -235,7 +318,10 @@ async function saveRerunHistory(source: AiHistoryItem, model: string): Promise<v
       prompt: source.prompt,
       output: output.value,
       model,
-      projectId: source.projectId ?? (selectedProjectId.value || undefined)
+      projectId: source.projectId ?? (selectedProjectId.value || undefined),
+      taskId: source.taskId ?? (selectedProjectTaskId.value || undefined),
+      sourceType: source.taskId || selectedProjectTaskId.value ? 'task' : source.sourceType,
+      sourceRef: source.taskId ?? selectedProjectTaskId.value ?? source.sourceRef
     })
     await loadHistories()
     selectedItem.value = savedHistories[0] ?? histories.value[0] ?? selectedItem.value
@@ -253,6 +339,7 @@ async function stopRerun(): Promise<void> {
 onMounted(() => {
   void safeLoad('读取 AI 历史中心', async () => {
     await loadProjects()
+    await loadProjectTasks()
     await loadHistories()
   })
 })
@@ -290,6 +377,18 @@ onMounted(() => {
               </select>
             </label>
             <label class="select-field">
+              <span>项目任务</span>
+              <select
+                v-model="selectedProjectTaskId"
+                class="select"
+                :disabled="!projectTasks.length"
+                @change="handleProjectTaskChange"
+              >
+                <option value="">全部任务</option>
+                <option v-for="task in projectTasks" :key="task.id" :value="task.id">{{ task.title }}</option>
+              </select>
+            </label>
+            <label class="select-field">
               <span>任务类型</span>
               <select v-model="selectedTaskType" class="select">
                 <option v-for="item in taskOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
@@ -322,6 +421,7 @@ onMounted(() => {
                 taskOptions.find((option) => option.value === item.taskType)?.label ?? item.taskType
               }}</span>
               <span v-if="item.isFavorite" class="badge success">已收藏</span>
+              <span v-if="item.taskId" class="badge warning">任务级</span>
               <strong>{{ item.title }}</strong>
               <small
                 >{{ getProjectName(item.projectId) }} · {{ item.model }} ·
@@ -339,6 +439,7 @@ onMounted(() => {
               <strong>{{ selectedItem.title }}</strong>
               <span class="badge">{{ selectedItem.taskType }}</span>
               <span class="badge">{{ getProjectName(selectedItem.projectId) }}</span>
+              <span v-if="selectedItem.taskId" class="badge warning">任务：{{ selectedItem.taskId }}</span>
             </div>
 
             <div class="toolbar">
@@ -353,6 +454,10 @@ onMounted(() => {
               <button class="button secondary" type="button" @click="createTemplateFromSelected">
                 <Clipboard :size="16" />
                 转为模板
+              </button>
+              <button class="button secondary" type="button" @click="createKnowledgeFromSelected">
+                <BookOpen :size="16" />
+                沉淀知识
               </button>
               <button class="button secondary" type="button" @click="toggleSelectedFavorite">
                 <Star :size="16" />

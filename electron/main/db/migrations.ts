@@ -220,7 +220,128 @@ export function migrateSchema(db: Database): void {
     setMeta(db, 'schema_version', '8')
   }
 
-  if (currentSchemaVersion > 8) setMeta(db, 'schema_version', String(currentSchemaVersion))
+  const versionAfterGeoDrop = Number(getMeta(db, 'schema_version') || 8)
+
+  if (versionAfterGeoDrop < 9) {
+    const projectColumns = [
+      ['project_type', "TEXT NOT NULL DEFAULT ''"],
+      ['tech_stack', "TEXT NOT NULL DEFAULT ''"],
+      ['install_command', "TEXT NOT NULL DEFAULT ''"],
+      ['dev_command', "TEXT NOT NULL DEFAULT ''"],
+      ['test_command', "TEXT NOT NULL DEFAULT ''"],
+      ['build_command', "TEXT NOT NULL DEFAULT ''"],
+      ['important_paths', "TEXT NOT NULL DEFAULT ''"],
+      ['notes', "TEXT NOT NULL DEFAULT ''"]
+    ] as const
+    for (const [column, definition] of projectColumns) {
+      if (!columnExists(db, 'workspace_projects', column)) {
+        run(db, `ALTER TABLE workspace_projects ADD COLUMN ${column} ${definition}`)
+      }
+    }
+
+    const historyColumns = [
+      ['task_id', 'TEXT'],
+      ['source_type', 'TEXT'],
+      ['source_ref', 'TEXT']
+    ] as const
+    for (const [column, definition] of historyColumns) {
+      if (!columnExists(db, 'ai_history', column)) {
+        run(db, `ALTER TABLE ai_history ADD COLUMN ${column} ${definition}`)
+      }
+    }
+
+    run(
+      db,
+      `CREATE TABLE IF NOT EXISTS project_tasks (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        task_type TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      )`
+    )
+    run(
+      db,
+      `CREATE TABLE IF NOT EXISTS project_knowledge (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        source_id TEXT,
+        is_favorite INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+    )
+    run(
+      db,
+      'CREATE INDEX IF NOT EXISTS idx_ai_history_project_task ON ai_history (project_id, task_id, created_at DESC)'
+    )
+    run(
+      db,
+      'CREATE INDEX IF NOT EXISTS idx_project_tasks_project_status ON project_tasks (project_id, status, updated_at DESC)'
+    )
+    run(
+      db,
+      'CREATE INDEX IF NOT EXISTS idx_project_tasks_project_updated ON project_tasks (project_id, updated_at DESC)'
+    )
+    run(
+      db,
+      'CREATE INDEX IF NOT EXISTS idx_project_knowledge_project ON project_knowledge (project_id, updated_at DESC)'
+    )
+    setMeta(db, 'schema_version', '9')
+  }
+
+  const versionAfterProjectManagement = Number(getMeta(db, 'schema_version') || 9)
+
+  if (versionAfterProjectManagement < 10) {
+    run(
+      db,
+      `CREATE TABLE IF NOT EXISTS project_task_files (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL,
+        content TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      )`
+    )
+    run(db, 'CREATE INDEX IF NOT EXISTS idx_project_task_files_task ON project_task_files (task_id, created_at DESC)')
+    setMeta(db, 'schema_version', '10')
+  }
+
+  const versionAfterTaskFiles = Number(getMeta(db, 'schema_version') || 10)
+
+  if (versionAfterTaskFiles < 11) {
+    if (!columnExists(db, 'api_saved_requests', 'task_id')) {
+      run(db, 'ALTER TABLE api_saved_requests ADD COLUMN task_id TEXT')
+    }
+    run(
+      db,
+      'CREATE INDEX IF NOT EXISTS idx_api_saved_requests_project_task ON api_saved_requests (project_id, task_id, updated_at DESC)'
+    )
+    setMeta(db, 'schema_version', '11')
+  }
+
+  const versionAfterTaskLinkedApi = Number(getMeta(db, 'schema_version') || 11)
+
+  if (versionAfterTaskLinkedApi < 12) {
+    createProjectAgentTables(db)
+    setMeta(db, 'schema_version', '12')
+  }
+
+  ensureCurrentSchema(db)
+
+  const versionAfterRepair = Number(getMeta(db, 'schema_version') || 0)
+  if (versionAfterRepair < currentSchemaVersion) setMeta(db, 'schema_version', String(currentSchemaVersion))
 }
 
 function columnExists(db: Database, table: string, column: string): boolean {
@@ -229,4 +350,133 @@ function columnExists(db: Database, table: string, column: string): boolean {
     readOne<{ name: string }>(db, `SELECT name FROM pragma_table_info('${safeTable}') WHERE name = ?`, [column]) !==
     null
   )
+}
+
+function ensureCurrentSchema(db: Database): void {
+  const projectColumns = [
+    ['project_type', "TEXT NOT NULL DEFAULT ''"],
+    ['tech_stack', "TEXT NOT NULL DEFAULT ''"],
+    ['install_command', "TEXT NOT NULL DEFAULT ''"],
+    ['dev_command', "TEXT NOT NULL DEFAULT ''"],
+    ['test_command', "TEXT NOT NULL DEFAULT ''"],
+    ['build_command', "TEXT NOT NULL DEFAULT ''"],
+    ['important_paths', "TEXT NOT NULL DEFAULT ''"],
+    ['notes', "TEXT NOT NULL DEFAULT ''"]
+  ] as const
+  for (const [column, definition] of projectColumns) {
+    if (!columnExists(db, 'workspace_projects', column)) {
+      run(db, `ALTER TABLE workspace_projects ADD COLUMN ${column} ${definition}`)
+    }
+  }
+
+  const historyColumns = [
+    ['task_id', 'TEXT'],
+    ['source_type', 'TEXT'],
+    ['source_ref', 'TEXT']
+  ] as const
+  for (const [column, definition] of historyColumns) {
+    if (!columnExists(db, 'ai_history', column)) {
+      run(db, `ALTER TABLE ai_history ADD COLUMN ${column} ${definition}`)
+    }
+  }
+
+  if (!columnExists(db, 'api_saved_requests', 'task_id')) {
+    run(db, 'ALTER TABLE api_saved_requests ADD COLUMN task_id TEXT')
+  }
+
+  run(
+    db,
+    `CREATE TABLE IF NOT EXISTS project_tasks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      task_type TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT
+    )`
+  )
+  run(
+    db,
+    `CREATE TABLE IF NOT EXISTS project_knowledge (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      is_favorite INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`
+  )
+  run(
+    db,
+    `CREATE TABLE IF NOT EXISTS project_task_files (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      path TEXT NOT NULL,
+      content TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    )`
+  )
+  run(db, 'CREATE INDEX IF NOT EXISTS idx_ai_history_project_task ON ai_history (project_id, task_id, created_at DESC)')
+  run(
+    db,
+    'CREATE INDEX IF NOT EXISTS idx_api_saved_requests_project_task ON api_saved_requests (project_id, task_id, updated_at DESC)'
+  )
+  run(
+    db,
+    'CREATE INDEX IF NOT EXISTS idx_project_tasks_project_status ON project_tasks (project_id, status, updated_at DESC)'
+  )
+  run(db, 'CREATE INDEX IF NOT EXISTS idx_project_tasks_project_updated ON project_tasks (project_id, updated_at DESC)')
+  run(db, 'CREATE INDEX IF NOT EXISTS idx_project_knowledge_project ON project_knowledge (project_id, updated_at DESC)')
+  run(db, 'CREATE INDEX IF NOT EXISTS idx_project_task_files_task ON project_task_files (task_id, created_at DESC)')
+  createProjectAgentTables(db)
+}
+
+function createProjectAgentTables(db: Database): void {
+  run(
+    db,
+    `CREATE TABLE IF NOT EXISTS project_agents (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      system_prompt TEXT NOT NULL,
+      responsibilities TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`
+  )
+  run(
+    db,
+    `CREATE TABLE IF NOT EXISTS agent_workflow_runs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      task_id TEXT,
+      title TEXT NOT NULL,
+      goal TEXT NOT NULL,
+      status TEXT NOT NULL,
+      steps TEXT NOT NULL,
+      output TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`
+  )
+  run(db, 'CREATE INDEX IF NOT EXISTS idx_project_agents_project ON project_agents (project_id, role, updated_at DESC)')
+  run(
+    db,
+    'CREATE INDEX IF NOT EXISTS idx_agent_workflow_runs_project ON agent_workflow_runs (project_id, updated_at DESC)'
+  )
+  run(db, 'CREATE INDEX IF NOT EXISTS idx_agent_workflow_runs_task ON agent_workflow_runs (task_id, updated_at DESC)')
 }

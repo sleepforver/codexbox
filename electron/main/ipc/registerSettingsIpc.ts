@@ -1,4 +1,5 @@
 import { app, dialog, ipcMain } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import type {
   AiHistoryItem,
@@ -16,11 +17,15 @@ import {
   getApiSavedRequests,
   getDatabaseInfo,
   importAiHistory,
+  listProjectKnowledge,
+  listProjectTasks,
   listWorkspaceProjects,
   readAppSettings,
   restoreDatabase,
   saveAiPromptTemplate,
   saveApiSavedRequest,
+  saveProjectKnowledge,
+  saveProjectTask,
   saveWorkspaceProject,
   updateAppSettings
 } from '../services/settings.js'
@@ -37,7 +42,7 @@ import { getRecentIpcErrors, withIpcError } from './ipcError.js'
 export function registerSettingsIpc(): void {
   ipcMain.handle('settings:get', () => readAppSettings())
   ipcMain.handle('settings:update', (_event, update) => withIpcError('保存设置', () => updateAppSettings(update)))
-  ipcMain.handle('settings:getDatabaseInfo', () => getDatabaseInfo())
+  ipcMain.handle('settings:getDatabaseInfo', () => withIpcError('读取数据库信息', () => getDatabaseInfo()))
   ipcMain.handle('settings:backupDatabase', () => withIpcError('备份数据库', () => backupDatabase()))
   ipcMain.handle('settings:restoreDatabase', async () => {
     const path = await chooseOpenPath([{ name: 'SQLite Database', extensions: ['db', 'sqlite', 'sqlite3'] }])
@@ -229,7 +234,15 @@ async function importWorkspaceProjects(): Promise<DataTransferResponse | null> {
       name: item.name,
       path: item.path,
       description: item.description,
-      tags: item.tags
+      tags: item.tags,
+      projectType: item.projectType,
+      techStack: item.techStack,
+      installCommand: item.installCommand,
+      devCommand: item.devCommand,
+      testCommand: item.testCommand,
+      buildCommand: item.buildCommand,
+      importantPaths: item.importantPaths,
+      notes: item.notes
     })
   }
 
@@ -260,14 +273,18 @@ async function exportProjectPackage(projectId: string): Promise<DataTransferResp
   const project = (await listWorkspaceProjects()).find((item) => item.id === projectId)
   if (!project) throw new Error('项目工作区不存在')
 
-  const [aiHistory, apiRequests] = await Promise.all([
+  const [aiHistory, apiRequests, tasks, knowledge] = await Promise.all([
     getAiHistory(undefined, projectId),
-    getApiSavedRequests(projectId)
+    getApiSavedRequests(projectId),
+    listProjectTasks({ projectId }),
+    listProjectKnowledge({ projectId })
   ])
   const packageData: ProjectDataPackage = {
     project,
     aiHistory,
     apiRequests,
+    tasks,
+    knowledge,
     exportedAt: new Date().toISOString()
   }
   const safeName = project.name.replace(/[\\/:*?"<>|]/g, '-').slice(0, 48) || 'project'
@@ -278,7 +295,7 @@ async function exportProjectPackage(projectId: string): Promise<DataTransferResp
   return {
     ok: true,
     message: `项目数据包已导出：${path}`,
-    count: aiHistory.length + apiRequests.length
+    count: aiHistory.length + apiRequests.length + tasks.length + knowledge.length
   }
 }
 
@@ -298,6 +315,8 @@ async function previewProjectPackageImport(): Promise<ProjectPackageImportPrevie
     projectCount: packages.length,
     aiHistoryCount: packages.reduce((sum, item) => sum + item.aiHistory.length, 0),
     apiRequestCount: packages.reduce((sum, item) => sum + item.apiRequests.length, 0),
+    taskCount: packages.reduce((sum, item) => sum + (item.tasks?.length ?? 0), 0),
+    knowledgeCount: packages.reduce((sum, item) => sum + (item.knowledge?.length ?? 0), 0),
     conflictProjectNames: packages.filter((item) => existingIds.has(item.project.id)).map((item) => item.project.name)
   }
 }
@@ -329,12 +348,21 @@ async function importProjectPackage(
       name: targetProjectName,
       path: project.path,
       description: project.description,
-      tags: project.tags
+      tags: project.tags,
+      projectType: project.projectType,
+      techStack: project.techStack,
+      installCommand: project.installCommand,
+      devCommand: project.devCommand,
+      testCommand: project.testCommand,
+      buildCommand: project.buildCommand,
+      importantPaths: project.importantPaths,
+      notes: project.notes
     })
     const savedProject = targetProjectId
       ? projects.find((item) => item.id === targetProjectId)
       : projects.find((item) => item.name === targetProjectName)
     const projectId = savedProject?.id ?? project.id
+    const taskIdMap = new Map<string, string>()
     importedCount += 1
     details.push({
       scope: targetProjectName,
@@ -342,21 +370,65 @@ async function importProjectPackage(
       message: `项目已${hasConflict ? (mode === 'new' ? '另存' : '覆盖') : '导入'}`
     })
 
+    for (const item of packageData.tasks ?? []) {
+      const taskId = mode === 'new' ? randomUUID() : item.id
+      if (item.id && taskId) taskIdMap.set(item.id, taskId)
+      await saveProjectTask({
+        id: taskId,
+        projectId,
+        title: item.title,
+        description: item.description,
+        taskType: item.taskType,
+        priority: item.priority,
+        status: item.status
+      })
+      importedCount += 1
+      details.push({ scope: targetProjectName, action: 'imported', message: `项目任务：${item.title}` })
+    }
+
+    for (const item of packageData.knowledge ?? []) {
+      await saveProjectKnowledge({
+        id: mode === 'new' ? undefined : item.id,
+        projectId,
+        title: item.title,
+        content: item.content,
+        sourceType: item.sourceType,
+        sourceId: item.sourceId,
+        isFavorite: item.isFavorite
+      })
+      importedCount += 1
+      details.push({ scope: targetProjectName, action: 'imported', message: `知识条目：${item.title}` })
+    }
+
     for (const item of packageData.aiHistory) {
-      await importAiHistory({ ...item, id: mode === 'new' ? undefined : item.id, projectId }, projectId)
+      await importAiHistory(
+        {
+          ...item,
+          id: mode === 'new' ? undefined : item.id,
+          projectId,
+          taskId: item.taskId ? (taskIdMap.get(item.taskId) ?? item.taskId) : undefined,
+          sourceRef: item.sourceRef && taskIdMap.has(item.sourceRef) ? taskIdMap.get(item.sourceRef) : item.sourceRef
+        },
+        projectId
+      )
       importedCount += 1
       details.push({ scope: targetProjectName, action: 'imported', message: `AI 历史：${item.title}` })
     }
 
     for (const item of packageData.apiRequests) {
       await saveApiSavedRequest({
-        id: item.id,
+        id: mode === 'new' ? undefined : item.id,
         name: item.name,
         method: item.method,
         url: item.url,
         headers: item.headers,
         body: item.body,
-        projectId
+        projectId,
+        taskId: item.taskId ? (taskIdMap.get(item.taskId) ?? item.taskId) : undefined,
+        groupName: item.groupName,
+        sourceType: item.sourceType,
+        sourcePath: item.sourcePath,
+        confidence: item.confidence
       })
       importedCount += 1
       details.push({ scope: targetProjectName, action: 'imported', message: `API 请求：${item.name}` })

@@ -83,6 +83,7 @@ export interface ApiSavedRequest {
   headers: HeaderPair[]
   body: string
   projectId?: string
+  taskId?: string
   groupName?: string
   sourceType?: 'spring-controller' | 'frontend-call' | 'openapi' | 'manual'
   sourcePath?: string
@@ -129,7 +130,7 @@ export interface ApiDiscoveryResponse {
   warnings: string[]
 }
 
-export type GitCommand = 'status' | 'log' | 'diff' | 'file-diff'
+export type GitCommand = 'status' | 'log' | 'diff' | 'raw-diff' | 'staged-diff' | 'file-diff'
 export type GitAction = 'stage-file' | 'unstage-file'
 
 export interface GitCommandRequest {
@@ -179,7 +180,7 @@ export type GitCommandResponse =
     }
   | {
       ok: true
-      command: 'diff'
+      command: 'diff' | 'raw-diff' | 'staged-diff'
       diff: GitDiffResponse
     }
   | {
@@ -198,6 +199,7 @@ export type GitCommitResponse = { ok: true; output: string } | { ok: false; outp
 
 export type AiTaskType = 'explain-code' | 'generate-code' | 'git-summary' | 'commit-message' | 'api-debug'
 export type AiProvider = 'siliconflow' | 'openai' | 'deepseek' | 'custom'
+export type AiHistorySourceType = 'manual' | 'project' | 'task' | 'git_diff' | 'api_response' | 'code_review'
 
 export interface AiHistoryItem {
   id: string
@@ -208,6 +210,9 @@ export interface AiHistoryItem {
   model: string
   isFavorite: boolean
   projectId?: string
+  taskId?: string
+  sourceType?: AiHistorySourceType
+  sourceRef?: string
   createdAt: string
 }
 
@@ -218,6 +223,9 @@ export interface AiHistorySaveRequest {
   output: string
   model: string
   projectId?: string
+  taskId?: string
+  sourceType?: AiHistorySourceType
+  sourceRef?: string
 }
 
 export interface AiPromptTemplate {
@@ -299,6 +307,14 @@ export interface WorkspaceProject {
   path: string
   description: string
   tags: string[]
+  projectType: string
+  techStack: string
+  installCommand: string
+  devCommand: string
+  testCommand: string
+  buildCommand: string
+  importantPaths: string
+  notes: string
   createdAt: string
   updatedAt: string
   lastOpenedAt: string | null
@@ -310,6 +326,208 @@ export interface WorkspaceProjectSaveRequest {
   path: string
   description: string
   tags: string[]
+  projectType?: string
+  techStack?: string
+  installCommand?: string
+  devCommand?: string
+  testCommand?: string
+  buildCommand?: string
+  importantPaths?: string
+  notes?: string
+}
+
+export interface ProjectProfileDraft {
+  projectType: string
+  techStack: string
+  installCommand: string
+  devCommand: string
+  testCommand: string
+  buildCommand: string
+  importantPaths: string
+  notes: string
+  tags: string[]
+}
+
+export type ProjectTaskStatus = 'todo' | 'in_progress' | 'pending_validation' | 'done' | 'archived'
+export type ProjectTaskType = 'requirement' | 'bug' | 'improvement' | 'refactor' | 'documentation' | 'release'
+export type ProjectTaskPriority = 'low' | 'medium' | 'high' | 'urgent'
+export type ProjectAgentRole = 'pm' | 'architect' | 'developer' | 'tester' | 'reviewer' | 'release'
+export type ProjectAgentStatus = 'active' | 'paused'
+export type AgentWorkflowStatus = 'draft' | 'running' | 'blocked' | 'done'
+
+export interface ProjectTask {
+  id: string
+  projectId: string
+  title: string
+  description: string
+  taskType: ProjectTaskType
+  priority: ProjectTaskPriority
+  status: ProjectTaskStatus
+  createdAt: string
+  updatedAt: string
+  completedAt: string | null
+}
+
+export interface ProjectTaskFile {
+  id: string
+  projectId: string
+  taskId: string
+  name: string
+  path: string
+  content: string
+  sizeBytes: number
+  createdAt: string
+}
+
+export interface ProjectTaskSaveRequest {
+  id?: string
+  projectId: string
+  title: string
+  description: string
+  taskType: ProjectTaskType
+  priority: ProjectTaskPriority
+  status: ProjectTaskStatus
+}
+
+export interface ProjectTaskFilters {
+  projectId: string
+  status?: ProjectTaskStatus | 'all'
+  taskType?: ProjectTaskType | 'all'
+  keyword?: string
+}
+
+export interface ProjectAgent {
+  id: string
+  projectId: string
+  name: string
+  role: ProjectAgentRole
+  provider: AiProvider
+  model: string
+  systemPrompt: string
+  responsibilities: string
+  status: ProjectAgentStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProjectAgentSaveRequest {
+  id?: string
+  projectId: string
+  name: string
+  role: ProjectAgentRole
+  provider: AiProvider
+  model: string
+  systemPrompt: string
+  responsibilities: string
+  status: ProjectAgentStatus
+}
+
+export interface AgentWorkflowStep {
+  agentId: string
+  agentName: string
+  role: ProjectAgentRole
+  instruction: string
+}
+
+export interface AgentWorkflowRun {
+  id: string
+  projectId: string
+  taskId?: string
+  title: string
+  goal: string
+  status: AgentWorkflowStatus
+  steps: AgentWorkflowStep[]
+  output: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AgentWorkflowRunSaveRequest {
+  id?: string
+  projectId: string
+  taskId?: string
+  title: string
+  goal: string
+  status: AgentWorkflowStatus
+  steps: AgentWorkflowStep[]
+  output: string
+}
+
+export interface AgentWorkflowPlanRequest {
+  projectId: string
+  taskId?: string
+  goal: string
+}
+
+export interface ProjectKnowledgeItem {
+  id: string
+  projectId: string
+  title: string
+  content: string
+  sourceType: AiHistorySourceType
+  sourceId?: string
+  isFavorite: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProjectKnowledgeFilters {
+  projectId: string
+  keyword?: string
+  favoriteOnly?: boolean
+}
+
+export interface ProjectKnowledgeSaveRequest {
+  id?: string
+  projectId: string
+  title: string
+  content: string
+  sourceType: AiHistorySourceType
+  sourceId?: string
+  isFavorite?: boolean
+}
+
+export type ProjectSearchResultType = 'project' | 'task' | 'ai_history' | 'api_request' | 'knowledge'
+
+export interface ProjectSearchFilters {
+  projectId: string
+  keyword?: string
+}
+
+export interface ProjectSearchResult {
+  id: string
+  projectId: string
+  type: ProjectSearchResultType
+  title: string
+  summary: string
+  sourceType?: AiHistorySourceType | ApiSavedRequest['sourceType'] | 'project' | 'task'
+  sourceId?: string
+  updatedAt: string
+}
+
+export interface ProjectDashboardSummary {
+  project: WorkspaceProject | null
+  pathExists: boolean
+  taskStats: Record<ProjectTaskStatus, number>
+  recentTasks: ProjectTask[]
+  aiStats: {
+    total: number
+    favorites: number
+    recent: AiHistoryItem[]
+  }
+  apiStats: {
+    savedRequests: number
+    envVars: number
+    recentHistory: ApiHistoryItem[]
+  }
+  git: {
+    ok: boolean
+    branch: string
+    changedFiles: number
+    stagedFiles: number
+    recentCommit: string
+    message: string
+  }
 }
 
 export interface DatabaseTableStat {
@@ -389,6 +607,8 @@ export interface ProjectPackageImportPreview {
   projectCount: number
   aiHistoryCount: number
   apiRequestCount: number
+  taskCount?: number
+  knowledgeCount?: number
   conflictProjectNames: string[]
 }
 
@@ -396,6 +616,8 @@ export interface ProjectDataPackage {
   project: WorkspaceProject
   aiHistory: AiHistoryItem[]
   apiRequests: ApiSavedRequest[]
+  tasks?: ProjectTask[]
+  knowledge?: ProjectKnowledgeItem[]
   exportedAt: string
 }
 
@@ -474,7 +696,7 @@ export interface DevtoolsApi {
     cancelStream(requestId: string): Promise<void>
     testConnection(): Promise<AiConnectionResponse>
     loadContextFile(): Promise<AiContextFileResponse | null>
-    getHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]>
+    getHistory(taskType?: AiTaskType, projectId?: string, taskId?: string): Promise<AiHistoryItem[]>
     saveHistory(request: AiHistorySaveRequest): Promise<AiHistoryItem[]>
     deleteHistory(id: string, taskType?: AiTaskType): Promise<AiHistoryItem[]>
     clearHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]>
@@ -509,8 +731,28 @@ export interface DevtoolsApi {
   projects: {
     list(): Promise<WorkspaceProject[]>
     save(request: WorkspaceProjectSaveRequest): Promise<WorkspaceProject[]>
+    scanProfile(projectPath: string): Promise<ProjectProfileDraft>
     delete(id: string): Promise<WorkspaceProject[]>
     markOpened(id: string): Promise<WorkspaceProject[]>
+    getDashboard(projectId?: string): Promise<ProjectDashboardSummary>
+    listTasks(filters: ProjectTaskFilters): Promise<ProjectTask[]>
+    saveTask(request: ProjectTaskSaveRequest): Promise<ProjectTask[]>
+    deleteTask(id: string, projectId: string): Promise<ProjectTask[]>
+    listTaskFiles(taskId: string): Promise<ProjectTaskFile[]>
+    attachTaskFile(projectId: string, taskId: string): Promise<ProjectTaskFile[]>
+    deleteTaskFile(id: string, taskId: string): Promise<ProjectTaskFile[]>
+    listAgents(projectId: string): Promise<ProjectAgent[]>
+    saveAgent(request: ProjectAgentSaveRequest): Promise<ProjectAgent[]>
+    deleteAgent(id: string, projectId: string): Promise<ProjectAgent[]>
+    listAgentRuns(projectId: string, taskId?: string): Promise<AgentWorkflowRun[]>
+    createAgentWorkflowPlan(request: AgentWorkflowPlanRequest): Promise<AgentWorkflowRun>
+    saveAgentRun(request: AgentWorkflowRunSaveRequest): Promise<AgentWorkflowRun[]>
+    deleteAgentRun(id: string, projectId: string): Promise<AgentWorkflowRun[]>
+    listKnowledge(filters: ProjectKnowledgeFilters): Promise<ProjectKnowledgeItem[]>
+    search(filters: ProjectSearchFilters): Promise<ProjectSearchResult[]>
+    saveKnowledge(request: ProjectKnowledgeSaveRequest): Promise<ProjectKnowledgeItem[]>
+    deleteKnowledge(id: string, projectId: string): Promise<ProjectKnowledgeItem[]>
+    toggleKnowledgeFavorite(id: string, projectId: string, favorite: boolean): Promise<ProjectKnowledgeItem[]>
   }
   updates: {
     getInfo(): Promise<UpdateInfo>

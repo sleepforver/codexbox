@@ -71,7 +71,7 @@ export function registerAiIpc(): void {
   })
   ipcMain.handle('ai:testConnection', () => handleAiTestConnection())
   ipcMain.handle('ai:loadContextFile', () => loadAiContextFile())
-  ipcMain.handle('ai:getHistory', (_event, taskType, projectId) => getAiHistory(taskType, projectId))
+  ipcMain.handle('ai:getHistory', (_event, taskType, projectId, taskId) => getAiHistory(taskType, projectId, taskId))
   ipcMain.handle('ai:saveHistory', (_event, request) => withIpcError('保存 AI 历史', () => saveAiHistory(request)))
   ipcMain.handle('ai:deleteHistory', (_event, id, taskType) =>
     withIpcError('删除 AI 历史', () => deleteAiHistory(id, taskType))

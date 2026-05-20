@@ -13,13 +13,14 @@ import type {
   ApiSendResponse,
   EnvPair,
   HeaderPair,
-  WorkspaceProject
+  ProjectTask
 } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
 import { isApiSendError } from '../ipcGuards'
 import { renderMarkdown } from '../markdown'
 import { renderPromptTemplate } from '../promptTemplates'
 import { safeLoad } from '../safeLoad'
+import { currentProjectId, loadProjectContext, projects as contextProjects } from '../stores/projectContext'
 import { showToast } from '../toast'
 import { showOperationError } from '../dbFeedback'
 
@@ -62,8 +63,10 @@ const aiHistory = ref<AiHistoryItem[]>([])
 const aiHistorySearch = ref('')
 const selectedAiHistoryItem = ref<AiHistoryItem | null>(null)
 const savedRequests = ref<ApiSavedRequest[]>([])
-const projects = ref<WorkspaceProject[]>([])
-const selectedProjectId = ref('')
+const projects = contextProjects
+const selectedProjectId = currentProjectId
+const projectTasks = ref<ProjectTask[]>([])
+const selectedProjectTaskId = ref('')
 const apiDiscovery = ref<ApiDiscoveryResponse | null>(null)
 const scanningApis = ref(false)
 const importingOpenApi = ref(false)
@@ -120,33 +123,22 @@ const filteredAiHistory = computed(() => {
 })
 
 async function loadState(): Promise<void> {
-  const [state, settings, projectItems, requests, promptTemplates, apiAiHistory] = await Promise.all([
+  await loadProjectContext()
+  const [state, settings, requests, promptTemplates, apiAiHistory] = await Promise.all([
     devtoolsApi.api.getState(selectedProjectId.value || undefined),
     devtoolsApi.settings.get(),
-    devtoolsApi.projects.list(),
     devtoolsApi.api.getSavedRequests(selectedProjectId.value || undefined),
     devtoolsApi.ai.getPromptTemplates(aiTaskType),
     devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value || undefined)
   ])
+  await loadProjectTasks()
   envVars.value = state.envVars.length ? state.envVars : [{ key: 'baseUrl', value: 'https://httpbin.org' }]
   ensureEnvVariable('token')
   history.value = state.history
-  projects.value = projectItems
-  const shouldUseRecentProject = !selectedProjectId.value && Boolean(projects.value[0])
-  selectedProjectId.value = selectedProjectId.value || projects.value[0]?.id || ''
-  if (selectedProjectId.value) {
-    const projectState = await devtoolsApi.api.getState(selectedProjectId.value)
-    envVars.value = projectState.envVars
-    ensureEnvVariable('token')
-  }
-  savedRequests.value = shouldUseRecentProject
-    ? await devtoolsApi.api.getSavedRequests(selectedProjectId.value)
-    : requests
+  savedRequests.value = requests
   timeoutMs.value = settings.apiTimeoutMs
   templates.value = promptTemplates
-  aiHistory.value = shouldUseRecentProject
-    ? await devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value)
-    : apiAiHistory
+  aiHistory.value = apiAiHistory
   selectedTemplateId.value = promptTemplates[0]?.id ?? ''
   await applyProjectDefaultTemplate()
   templateDraft.value = promptTemplates[0]?.content ?? ''
@@ -157,6 +149,18 @@ async function applyProjectDefaultTemplate(): Promise<void> {
   if (!selectedProjectId.value) return
   const templateId = await devtoolsApi.ai.getProjectPromptDefault(selectedProjectId.value, aiTaskType)
   if (templateId && templates.value.some((item) => item.id === templateId)) selectedTemplateId.value = templateId
+}
+
+async function loadProjectTasks(): Promise<void> {
+  if (!selectedProjectId.value) {
+    projectTasks.value = []
+    selectedProjectTaskId.value = ''
+    return
+  }
+  projectTasks.value = await devtoolsApi.projects.listTasks({ projectId: selectedProjectId.value })
+  if (selectedProjectTaskId.value && !projectTasks.value.some((item) => item.id === selectedProjectTaskId.value)) {
+    selectedProjectTaskId.value = ''
+  }
 }
 
 async function discoverProjectApis(): Promise<void> {
@@ -573,6 +577,7 @@ function loadSavedRequest(item: ApiSavedRequest): void {
   url.value = withBaseUrlPlaceholder(item.url)
   headers.value = item.headers.length ? item.headers : [{ key: 'Accept', value: 'application/json' }]
   body.value = item.body
+  selectedProjectTaskId.value = item.taskId ?? ''
   status.value = `已载入请求：${item.name}`
   statusType.value = 'success'
   showToast(status.value, 'success')
@@ -605,7 +610,8 @@ async function saveCurrentRequest(): Promise<void> {
       url: url.value,
       headers: headers.value,
       body: body.value,
-      projectId: selectedProjectId.value || undefined
+      projectId: selectedProjectId.value || undefined,
+      taskId: selectedProjectTaskId.value || undefined
     })
     status.value = 'API 请求已保存'
     statusType.value = 'success'
@@ -729,7 +735,10 @@ async function saveAiHistory(promptText: string, model: string): Promise<void> {
       prompt: promptText,
       output: aiOutput.value,
       model,
-      projectId: selectedProjectId.value || undefined
+      projectId: selectedProjectId.value || undefined,
+      taskId: selectedProjectTaskId.value || undefined,
+      sourceType: selectedProjectTaskId.value ? 'task' : 'api_response',
+      sourceRef: selectedProjectTaskId.value || `${method.value} ${url.value}`
     })
   } catch (error) {
     status.value = showOperationError(error, '保存 API AI 分析历史失败')
@@ -847,6 +856,7 @@ watch(selectedProjectId, () => {
       devtoolsApi.api.getState(selectedProjectId.value || undefined),
       devtoolsApi.ai.getHistory(aiTaskType, selectedProjectId.value || undefined)
     ])
+    await loadProjectTasks()
     savedRequests.value = requests
     envVars.value = apiState.envVars
     ensureEnvVariable('token')
@@ -872,6 +882,15 @@ onMounted(() => {
         <select v-model="selectedProjectId" class="select select-compact" aria-label="项目工作区">
           <option value="">全部项目</option>
           <option v-for="project in projects" :key="project.id" :value="project.id">{{ project.name }}</option>
+        </select>
+        <select
+          v-model="selectedProjectTaskId"
+          class="select select-compact"
+          aria-label="关联项目任务"
+          :disabled="!projectTasks.length"
+        >
+          <option value="">不关联任务</option>
+          <option v-for="task in projectTasks" :key="task.id" :value="task.id">{{ task.title }}</option>
         </select>
         <button class="button secondary" type="button" @click="copyCurl">
           <Copy :size="16" />

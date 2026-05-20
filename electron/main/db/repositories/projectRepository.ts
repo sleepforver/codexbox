@@ -10,6 +10,14 @@ interface WorkspaceProjectRow {
   path: string
   description: string
   tags: string
+  project_type: string
+  tech_stack: string
+  install_command: string
+  dev_command: string
+  test_command: string
+  build_command: string
+  important_paths: string
+  notes: string
   created_at: string
   updated_at: string
   last_opened_at: string | null
@@ -22,6 +30,14 @@ function mapProject(row: WorkspaceProjectRow): WorkspaceProject {
     path: row.path,
     description: row.description,
     tags: JSON.parse(row.tags) as string[],
+    projectType: row.project_type,
+    techStack: row.tech_stack,
+    installCommand: row.install_command,
+    devCommand: row.dev_command,
+    testCommand: row.test_command,
+    buildCommand: row.build_command,
+    importantPaths: row.important_paths,
+    notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastOpenedAt: row.last_opened_at
@@ -33,6 +49,7 @@ export async function listWorkspaceProjectsFromDb(): Promise<WorkspaceProject[]>
   const rows = readMany<WorkspaceProjectRow>(
     db,
     `SELECT id, name, path, description, tags, created_at, updated_at, last_opened_at
+      , project_type, tech_stack, install_command, dev_command, test_command, build_command, important_paths, notes
       FROM workspace_projects
       ORDER BY COALESCE(last_opened_at, updated_at) DESC, name ASC`
   )
@@ -57,14 +74,22 @@ export async function saveWorkspaceProjectToDb(request: WorkspaceProjectSaveRequ
   run(
     db,
     `INSERT OR REPLACE INTO workspace_projects
-      (id, name, path, description, tags, created_at, updated_at, last_opened_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, name, path, description, tags, project_type, tech_stack, install_command, dev_command, test_command, build_command, important_paths, notes, created_at, updated_at, last_opened_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       name,
       parsed.path.trim(),
       parsed.description.trim(),
       JSON.stringify(Array.from(new Set(tags))),
+      parsed.projectType?.trim() ?? '',
+      parsed.techStack?.trim() ?? '',
+      parsed.installCommand?.trim() ?? '',
+      parsed.devCommand?.trim() ?? '',
+      parsed.testCommand?.trim() ?? '',
+      parsed.buildCommand?.trim() ?? '',
+      parsed.importantPaths?.trim() ?? '',
+      parsed.notes?.trim() ?? '',
       existing?.created_at || now,
       now,
       existing?.last_opened_at ?? null
@@ -76,6 +101,9 @@ export async function saveWorkspaceProjectToDb(request: WorkspaceProjectSaveRequ
 
 export async function deleteWorkspaceProjectFromDb(id: string): Promise<WorkspaceProject[]> {
   const db = await getDatabase()
+  run(db, 'DELETE FROM project_task_files WHERE project_id = ?', [id])
+  run(db, 'DELETE FROM project_knowledge WHERE project_id = ?', [id])
+  run(db, 'DELETE FROM project_tasks WHERE project_id = ?', [id])
   run(db, 'DELETE FROM workspace_projects WHERE id = ?', [id])
   persist(db)
   return listWorkspaceProjectsFromDb()

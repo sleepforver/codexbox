@@ -5,6 +5,7 @@ import type {
   DataTransferDetail,
   ProjectPackageImportMode,
   ProjectPackageImportPreview,
+  ProjectProfileDraft,
   WorkspaceProject
 } from '../../shared/ipc'
 import { devtoolsApi } from '../devtoolsApi'
@@ -20,11 +21,20 @@ const form = ref({
   name: '',
   path: '',
   description: '',
-  tags: ''
+  tags: '',
+  projectType: '',
+  techStack: '',
+  installCommand: '',
+  devCommand: '',
+  testCommand: '',
+  buildCommand: '',
+  importantPaths: '',
+  notes: ''
 })
 const packageImportMode = ref<ProjectPackageImportMode>('overwrite')
 const packagePreview = ref<ProjectPackageImportPreview | null>(null)
 const packageImportDetails = ref<DataTransferDetail[]>([])
+const scanningProfile = ref(false)
 
 const selectedProject = computed(() => projects.value.find((item) => item.id === selectedId.value) ?? null)
 const filteredProjects = computed(() => {
@@ -51,7 +61,15 @@ function applyProject(project: WorkspaceProject): void {
     name: project.name,
     path: project.path,
     description: project.description,
-    tags: project.tags.join(', ')
+    tags: project.tags.join(', '),
+    projectType: project.projectType,
+    techStack: project.techStack,
+    installCommand: project.installCommand,
+    devCommand: project.devCommand,
+    testCommand: project.testCommand,
+    buildCommand: project.buildCommand,
+    importantPaths: project.importantPaths,
+    notes: project.notes
   }
   status.value = `已选择 ${project.name}`
   statusType.value = 'idle'
@@ -63,7 +81,15 @@ function createProject(): void {
     name: '',
     path: '',
     description: '',
-    tags: ''
+    tags: '',
+    projectType: '',
+    techStack: '',
+    installCommand: '',
+    devCommand: '',
+    testCommand: '',
+    buildCommand: '',
+    importantPaths: '',
+    notes: ''
   }
   status.value = '正在创建新项目工作区'
   statusType.value = 'idle'
@@ -77,8 +103,57 @@ async function chooseDirectory(): Promise<void> {
     if (!form.value.name.trim()) {
       form.value.name = directory.split(/[\\/]/).filter(Boolean).at(-1) ?? '未命名项目'
     }
+    await autoFillProjectProfile(false)
   } catch (error) {
     handleError(error, '选择项目目录失败')
+  }
+}
+
+function setProfileField(key: keyof typeof form.value, value: string, overwrite: boolean): boolean {
+  const nextValue = value.trim()
+  if (!nextValue) return false
+  if (!overwrite && form.value[key].trim()) return false
+  if (form.value[key] === nextValue) return false
+  form.value[key] = nextValue
+  return true
+}
+
+function mergeProjectProfileDraft(draft: ProjectProfileDraft, overwrite = false): number {
+  let count = 0
+  if (setProfileField('projectType', draft.projectType, overwrite)) count += 1
+  if (setProfileField('techStack', draft.techStack, overwrite)) count += 1
+  if (setProfileField('installCommand', draft.installCommand, overwrite)) count += 1
+  if (setProfileField('devCommand', draft.devCommand, overwrite)) count += 1
+  if (setProfileField('testCommand', draft.testCommand, overwrite)) count += 1
+  if (setProfileField('buildCommand', draft.buildCommand, overwrite)) count += 1
+  if (setProfileField('importantPaths', draft.importantPaths, overwrite)) count += 1
+  if (setProfileField('notes', draft.notes, overwrite)) count += 1
+  if (draft.tags.length && setProfileField('tags', draft.tags.join(', '), overwrite)) {
+    count += 1
+  }
+  return count
+}
+
+async function autoFillProjectProfile(overwrite = false): Promise<void> {
+  if (!form.value.path.trim()) {
+    handleError(new Error('请先选择项目目录'), '自动补全项目资料失败')
+    return
+  }
+  scanningProfile.value = true
+  try {
+    const draft = await devtoolsApi.projects.scanProfile(form.value.path)
+    const count = mergeProjectProfileDraft(draft, overwrite)
+    if (count) {
+      status.value = overwrite ? `已覆盖补全 ${count} 个项目资料字段` : `已自动补全 ${count} 个项目资料字段`
+    } else {
+      status.value = overwrite ? '扫描结果与当前项目资料一致' : '没有需要自动补全的空字段'
+    }
+    statusType.value = 'success'
+    showToast(status.value, 'success')
+  } catch (error) {
+    handleError(error, '自动补全项目资料失败')
+  } finally {
+    scanningProfile.value = false
   }
 }
 
@@ -97,7 +172,15 @@ async function saveProject(): Promise<void> {
       tags: form.value.tags
         .split(/[,，\s]+/)
         .map((tag) => tag.trim())
-        .filter(Boolean)
+        .filter(Boolean),
+      projectType: form.value.projectType,
+      techStack: form.value.techStack,
+      installCommand: form.value.installCommand,
+      devCommand: form.value.devCommand,
+      testCommand: form.value.testCommand,
+      buildCommand: form.value.buildCommand,
+      importantPaths: form.value.importantPaths,
+      notes: form.value.notes
     })
     selectedId.value = projects.value.find((item) => item.path === form.value.path)?.id ?? projects.value[0]?.id ?? ''
     if (selectedProject.value) applyProject(selectedProject.value)
@@ -194,7 +277,7 @@ async function importProjectPackage(): Promise<void> {
     : ''
   if (
     !window.confirm(
-      `确认导入项目数据包？\n项目：${packagePreview.value.projectCount} 个\nAI 历史：${packagePreview.value.aiHistoryCount} 条\nAPI 请求：${packagePreview.value.apiRequestCount} 条${conflictText}`
+      `确认导入项目数据包？\n项目：${packagePreview.value.projectCount} 个\n任务：${packagePreview.value.taskCount ?? 0} 条\n知识条目：${packagePreview.value.knowledgeCount ?? 0} 条\nAI 历史：${packagePreview.value.aiHistoryCount} 条\nAPI 请求：${packagePreview.value.apiRequestCount} 条${conflictText}`
     )
   ) {
     return
@@ -306,7 +389,7 @@ onMounted(() => {
           </div>
         </aside>
 
-        <div class="section">
+        <div class="section project-profile-form">
           <div class="field">
             <label for="project-name">项目名称</label>
             <input id="project-name" v-model="form.name" class="input" placeholder="例如：后台管理系统" />
@@ -320,6 +403,22 @@ onMounted(() => {
                 <FolderOpen :size="16" />
                 选择
               </button>
+              <button
+                class="button secondary icon-text-button"
+                type="button"
+                :disabled="scanningProfile || !form.path.trim()"
+                @click="autoFillProjectProfile(false)"
+              >
+                {{ scanningProfile ? '扫描中' : '自动补全' }}
+              </button>
+              <button
+                class="button secondary icon-text-button"
+                type="button"
+                :disabled="scanningProfile || !form.path.trim()"
+                @click="autoFillProjectProfile(true)"
+              >
+                覆盖补全
+              </button>
             </div>
           </div>
 
@@ -329,12 +428,73 @@ onMounted(() => {
           </div>
 
           <div class="field">
+            <label for="project-type">项目类型</label>
+            <select id="project-type" v-model="form.projectType" class="select">
+              <option value="">未设置</option>
+              <option value="frontend">前端</option>
+              <option value="backend">后端</option>
+              <option value="desktop">桌面应用</option>
+              <option value="script">脚本工具</option>
+              <option value="fullstack">全栈项目</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="project-tech-stack">技术栈</label>
+            <input
+              id="project-tech-stack"
+              v-model="form.techStack"
+              class="input"
+              placeholder="Vue, Electron, TypeScript"
+            />
+          </div>
+
+          <div class="command-grid">
+            <div class="field">
+              <label for="install-command">安装命令</label>
+              <input id="install-command" v-model="form.installCommand" class="input" placeholder="npm.cmd install" />
+            </div>
+            <div class="field">
+              <label for="dev-command">启动命令</label>
+              <input id="dev-command" v-model="form.devCommand" class="input" placeholder="npm.cmd run dev" />
+            </div>
+            <div class="field">
+              <label for="test-command">测试命令</label>
+              <input id="test-command" v-model="form.testCommand" class="input" placeholder="npm.cmd test" />
+            </div>
+            <div class="field">
+              <label for="build-command">构建命令</label>
+              <input id="build-command" v-model="form.buildCommand" class="input" placeholder="npm.cmd run build" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="important-paths">重要目录</label>
+            <textarea
+              id="important-paths"
+              v-model="form.importantPaths"
+              class="textarea compact-textarea"
+              placeholder="src/：前端代码&#10;electron/：主进程和数据库"
+            />
+          </div>
+
+          <div class="field">
             <label for="project-description">说明</label>
             <textarea
               id="project-description"
               v-model="form.description"
               class="textarea project-description"
               placeholder="记录项目用途、业务边界、常用验证方式"
+            />
+          </div>
+
+          <div class="field">
+            <label for="project-notes">项目备注</label>
+            <textarea
+              id="project-notes"
+              v-model="form.notes"
+              class="textarea compact-textarea"
+              placeholder="记录环境要求、启动注意事项、发布说明入口"
             />
           </div>
 

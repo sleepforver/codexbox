@@ -82,6 +82,7 @@ export async function getApiSavedRequestsFromDb(projectId?: string): Promise<Api
     headers: string
     body: string
     project_id: string | null
+    task_id: string | null
     group_name: string | null
     source_type: ApiSavedRequest['sourceType'] | null
     source_path: string | null
@@ -90,7 +91,7 @@ export async function getApiSavedRequestsFromDb(projectId?: string): Promise<Api
     updated_at: string
   }>(
     db,
-    `SELECT id, name, method, url, headers, body, project_id, group_name, source_type, source_path, confidence, created_at, updated_at
+    `SELECT id, name, method, url, headers, body, project_id, task_id, group_name, source_type, source_path, confidence, created_at, updated_at
       FROM api_saved_requests ${where}
       ORDER BY COALESCE(group_name, ''), updated_at DESC`,
     params
@@ -104,6 +105,7 @@ export async function getApiSavedRequestsFromDb(projectId?: string): Promise<Api
     headers: JSON.parse(row.headers) as ApiSavedRequest['headers'],
     body: row.body,
     projectId: row.project_id ?? undefined,
+    taskId: row.task_id ?? undefined,
     groupName: row.group_name ?? undefined,
     sourceType: row.source_type ?? undefined,
     sourcePath: row.source_path ?? undefined,
@@ -127,8 +129,8 @@ export async function saveApiRequestToDb(
   run(
     db,
     `INSERT OR REPLACE INTO api_saved_requests
-      (id, name, method, url, headers, body, project_id, group_name, source_type, source_path, confidence, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, name, method, url, headers, body, project_id, task_id, group_name, source_type, source_path, confidence, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       parsed.name.trim() || `${parsed.method} ${parsed.url}`,
@@ -137,6 +139,7 @@ export async function saveApiRequestToDb(
       JSON.stringify(parsed.headers),
       parsed.body,
       parsed.projectId ?? null,
+      parsed.taskId ?? null,
       parsed.groupName ?? null,
       parsed.sourceType ?? null,
       parsed.sourcePath ?? null,

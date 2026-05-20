@@ -116,9 +116,9 @@ function seedMutableRows(db) {
 }
 
 const schemaVersion = extractCurrentSchemaVersion()
-assert.equal(schemaVersion, 8, 'unexpected current schema version')
+assert.equal(schemaVersion, 12, 'unexpected current schema version')
 
-for (const version of [2, 3, 4, 5, 6, 7, 8]) {
+for (const version of [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
   assertIncludes('electron/main/db/migrations.ts', `schema_version', '${version}`, `migration version ${version}`)
 }
 
@@ -152,6 +152,16 @@ assertIncludes(
 )
 assertIncludes('electron/main/ipc/ipcError.ts', 'getRecentIpcErrors', 'recent IPC error diagnostics')
 assertIncludes('electron/main/ipc/registerSettingsIpc.ts', 'settings:exportDiagnostics', 'diagnostics export IPC')
+assertIncludes(
+  'electron/main/ipc/registerSettingsIpc.ts',
+  "withIpcError('读取数据库信息'",
+  'database info error tracking'
+)
+assertIncludes(
+  'electron/main/ipc/registerProjectsIpc.ts',
+  "withIpcError('读取项目工作区'",
+  'project list error tracking'
+)
 assertIncludes('electron/main/ipc/registerSettingsIpc.ts', "withIpcError('导出 AI 历史'", 'export error tracking')
 assertIncludes('electron/main/ipc/registerSettingsIpc.ts', "withIpcError('导出项目数据包'", 'project export tracking')
 assertIncludes('electron/main/ipc/registerSettingsIpc.ts', 'createDiagnosticSnapshot', 'diagnostics snapshot')
@@ -166,20 +176,91 @@ const db = new SQL.Database()
 db.run(extractInitializeSchemaSql())
 
 const expectedTables = [
+  'agent_workflow_runs',
   'ai_history',
   'ai_prompt_templates',
   'api_env_vars',
   'api_history',
   'api_saved_requests',
   'meta',
+  'project_agents',
+  'project_knowledge',
+  'project_task_files',
+  'project_tasks',
   'settings',
   'workspace_projects'
 ]
 assert.deepEqual(tableNames(db), expectedTables)
 
 assert.ok(columnNames(db, 'ai_history').includes('is_favorite'), 'ai_history.is_favorite missing')
+assert.ok(columnNames(db, 'ai_history').includes('task_id'), 'ai_history.task_id missing')
+assert.ok(columnNames(db, 'ai_history').includes('source_type'), 'ai_history.source_type missing')
 assert.ok(columnNames(db, 'api_saved_requests').includes('project_id'), 'api_saved_requests.project_id missing')
+assert.ok(columnNames(db, 'api_saved_requests').includes('task_id'), 'api_saved_requests.task_id missing')
 assert.ok(columnNames(db, 'api_env_vars').includes('project_id'), 'api_env_vars.project_id missing')
+assert.ok(columnNames(db, 'workspace_projects').includes('tech_stack'), 'workspace_projects.tech_stack missing')
+assert.ok(
+  columnNames(db, 'workspace_projects').includes('important_paths'),
+  'workspace_projects.important_paths missing'
+)
+assert.ok(columnNames(db, 'project_tasks').includes('project_id'), 'project_tasks.project_id missing')
+assert.ok(columnNames(db, 'project_task_files').includes('content'), 'project_task_files.content missing')
+assert.ok(columnNames(db, 'project_knowledge').includes('source_id'), 'project_knowledge.source_id missing')
+assert.ok(columnNames(db, 'project_agents').includes('system_prompt'), 'project_agents.system_prompt missing')
+assert.ok(columnNames(db, 'agent_workflow_runs').includes('steps'), 'agent_workflow_runs.steps missing')
+
+const legacyDb = new SQL.Database()
+try {
+  legacyDb.run(`
+    CREATE TABLE ai_history (
+      id TEXT PRIMARY KEY,
+      task_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      output TEXT NOT NULL,
+      model TEXT NOT NULL,
+      is_favorite INTEGER NOT NULL DEFAULT 0,
+      project_id TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE api_saved_requests (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      method TEXT NOT NULL,
+      url TEXT NOT NULL,
+      headers TEXT NOT NULL,
+      body TEXT NOT NULL,
+      project_id TEXT,
+      group_name TEXT,
+      source_type TEXT,
+      source_path TEXT,
+      confidence INTEGER,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    INSERT INTO meta (key, value) VALUES ('schema_version', '8');
+  `)
+  assert.doesNotThrow(
+    () => legacyDb.run(extractInitializeSchemaSql()),
+    'initializeSchema should not fail before task_id migrations run'
+  )
+} finally {
+  legacyDb.close()
+}
+
+assertIncludes('electron/main/db/migrations.ts', 'ensureCurrentSchema(db)', 'schema repair pass')
+assertIncludes(
+  'electron/main/db/migrations.ts',
+  'ALTER TABLE api_saved_requests ADD COLUMN task_id TEXT',
+  'api_saved_requests.task_id repair'
+)
+assertIncludes('electron/main/db/migrations.ts', 'CREATE TABLE IF NOT EXISTS project_agents', 'project agents table')
+assertIncludes(
+  'electron/main/db/migrations.ts',
+  'CREATE TABLE IF NOT EXISTS agent_workflow_runs',
+  'agent workflow runs table'
+)
 
 seedMutableRows(db)
 assert.equal(tableCount(db, 'ai_history'), 1)

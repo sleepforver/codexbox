@@ -12,6 +12,21 @@ import type {
   DatabaseInfo,
   DatabaseMaintenanceCleanupRequest,
   DatabaseMaintenanceResponse,
+  ProjectDashboardSummary,
+  AgentWorkflowPlanRequest,
+  AgentWorkflowRun,
+  AgentWorkflowRunSaveRequest,
+  ProjectAgent,
+  ProjectAgentSaveRequest,
+  ProjectKnowledgeFilters,
+  ProjectKnowledgeItem,
+  ProjectKnowledgeSaveRequest,
+  ProjectSearchFilters,
+  ProjectSearchResult,
+  ProjectTask,
+  ProjectTaskFile,
+  ProjectTaskFilters,
+  ProjectTaskSaveRequest,
   WorkspaceProject,
   WorkspaceProjectSaveRequest
 } from '../../../src/shared/ipc.js'
@@ -24,16 +39,27 @@ import {
   deleteAiHistoryFromDb,
   deleteAiPromptTemplateFromDb,
   deleteApiRequestFromDb,
+  deleteProjectTaskFromDb,
+  deleteProjectTaskFileFromDb,
+  deleteProjectAgentFromDb,
+  deleteAgentWorkflowRunFromDb,
+  deleteProjectKnowledgeFromDb,
   deleteWorkspaceProjectFromDb,
   getAiHistoryFromDb,
   getAiPromptTemplatesFromDb,
   getApiSavedRequestsFromDb,
   getApiToolStateFromDb,
   getDatabaseInfoFromDb,
+  getProjectDashboardFromDb,
   getSetting,
   importAiHistoryToDb,
   toggleAiHistoryFavoriteInDb,
   listWorkspaceProjectsFromDb,
+  listProjectKnowledgeFromDb,
+  listProjectAgentsFromDb,
+  listAgentWorkflowRunsFromDb,
+  listProjectTasksFromDb,
+  listProjectTaskFilesFromDb,
   markWorkspaceProjectOpenedInDb,
   resetBuiltinPromptTemplatesInDb,
   restoreDatabaseFromFile,
@@ -41,8 +67,16 @@ import {
   saveAiPromptTemplateToDb,
   saveApiRequestToDb,
   saveApiToolStateToDb,
+  saveProjectTaskToDb,
+  saveProjectTaskFileToDb,
+  createAgentWorkflowPlanFromDb,
+  saveProjectAgentToDb,
+  saveAgentWorkflowRunToDb,
+  saveProjectKnowledgeToDb,
+  searchProjectKnowledgeFromDb,
   saveWorkspaceProjectToDb,
-  setSetting
+  setSetting,
+  toggleProjectKnowledgeFavoriteInDb
 } from './database.js'
 
 interface AiProviderConfig {
@@ -243,8 +277,8 @@ export function deleteApiSavedRequest(id: string): Promise<ApiSavedRequest[]> {
   return deleteApiRequestFromDb(id)
 }
 
-export function getAiHistory(taskType?: AiTaskType, projectId?: string): Promise<AiHistoryItem[]> {
-  return getAiHistoryFromDb(taskType, projectId)
+export function getAiHistory(taskType?: AiTaskType, projectId?: string, taskId?: string): Promise<AiHistoryItem[]> {
+  return getAiHistoryFromDb(taskType, projectId, taskId)
 }
 
 export function saveAiHistory(request: AiHistorySaveRequest): Promise<AiHistoryItem[]> {
@@ -338,4 +372,90 @@ export function deleteWorkspaceProject(id: string): Promise<WorkspaceProject[]> 
 
 export function markWorkspaceProjectOpened(id: string): Promise<WorkspaceProject[]> {
   return markWorkspaceProjectOpenedInDb(id)
+}
+
+export function getProjectDashboard(projectId?: string): Promise<ProjectDashboardSummary> {
+  return getProjectDashboardFromDb(projectId)
+}
+
+export function listProjectTasks(filters: ProjectTaskFilters): Promise<ProjectTask[]> {
+  return listProjectTasksFromDb(filters)
+}
+
+export function saveProjectTask(request: ProjectTaskSaveRequest): Promise<ProjectTask[]> {
+  return saveProjectTaskToDb(request)
+}
+
+export function deleteProjectTask(id: string, projectId: string): Promise<ProjectTask[]> {
+  return deleteProjectTaskFromDb(id, projectId)
+}
+
+export function listProjectTaskFiles(taskId: string): Promise<ProjectTaskFile[]> {
+  return listProjectTaskFilesFromDb(taskId)
+}
+
+export function saveProjectTaskFile(request: {
+  projectId: string
+  taskId: string
+  path: string
+  content: string
+  sizeBytes: number
+}): Promise<ProjectTaskFile[]> {
+  return saveProjectTaskFileToDb(request)
+}
+
+export function deleteProjectTaskFile(id: string, taskId: string): Promise<ProjectTaskFile[]> {
+  return deleteProjectTaskFileFromDb(id, taskId)
+}
+
+export function listProjectAgents(projectId: string): Promise<ProjectAgent[]> {
+  return listProjectAgentsFromDb(projectId)
+}
+
+export function saveProjectAgent(request: ProjectAgentSaveRequest): Promise<ProjectAgent[]> {
+  return saveProjectAgentToDb(request)
+}
+
+export function deleteProjectAgent(id: string, projectId: string): Promise<ProjectAgent[]> {
+  return deleteProjectAgentFromDb(id, projectId)
+}
+
+export function listAgentWorkflowRuns(projectId: string, taskId?: string): Promise<AgentWorkflowRun[]> {
+  return listAgentWorkflowRunsFromDb(projectId, taskId)
+}
+
+export function createAgentWorkflowPlan(request: AgentWorkflowPlanRequest): Promise<AgentWorkflowRun> {
+  return createAgentWorkflowPlanFromDb(request)
+}
+
+export function saveAgentWorkflowRun(request: AgentWorkflowRunSaveRequest): Promise<AgentWorkflowRun[]> {
+  return saveAgentWorkflowRunToDb(request)
+}
+
+export function deleteAgentWorkflowRun(id: string, projectId: string): Promise<AgentWorkflowRun[]> {
+  return deleteAgentWorkflowRunFromDb(id, projectId)
+}
+
+export function listProjectKnowledge(filters: ProjectKnowledgeFilters): Promise<ProjectKnowledgeItem[]> {
+  return listProjectKnowledgeFromDb(filters)
+}
+
+export function searchProjectKnowledge(filters: ProjectSearchFilters): Promise<ProjectSearchResult[]> {
+  return searchProjectKnowledgeFromDb(filters)
+}
+
+export function saveProjectKnowledge(request: ProjectKnowledgeSaveRequest): Promise<ProjectKnowledgeItem[]> {
+  return saveProjectKnowledgeToDb(request)
+}
+
+export function deleteProjectKnowledge(id: string, projectId: string): Promise<ProjectKnowledgeItem[]> {
+  return deleteProjectKnowledgeFromDb(id, projectId)
+}
+
+export function toggleProjectKnowledgeFavorite(
+  id: string,
+  projectId: string,
+  favorite: boolean
+): Promise<ProjectKnowledgeItem[]> {
+  return toggleProjectKnowledgeFavoriteInDb(id, projectId, favorite)
 }

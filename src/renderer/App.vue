@@ -1,27 +1,51 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Bot, Braces, FolderKanban, GitBranch, Hammer, History, Send, Settings, Sparkles } from 'lucide-vue-next'
-import type { AppSettings, WorkspaceProject } from '../shared/ipc'
+import {
+  Bot,
+  BookOpen,
+  Braces,
+  ClipboardList,
+  FileSearch,
+  FolderKanban,
+  GitBranch,
+  Hammer,
+  History,
+  LayoutDashboard,
+  Send,
+  Settings,
+  Sparkles
+} from 'lucide-vue-next'
+import type { AppSettings } from '../shared/ipc'
 import { devtoolsApi } from './devtoolsApi'
 import { routes } from './routes'
+import {
+  currentProject,
+  currentProjectId,
+  loadProjectContext,
+  markCurrentProjectOpened,
+  projects as recentProjects
+} from './stores/projectContext'
 import { showToast } from './toast'
 import { toasts } from './toast'
 
 const route = useRoute()
 const router = useRouter()
-const recentProjects = ref<WorkspaceProject[]>([])
-const selectedRecentProjectId = ref('')
 const appSettings = ref<AppSettings | null>(null)
 const onboardingDismissed = ref(localStorage.getItem('codexbox:onboarding-dismissed') === '1')
 const navItems = [
-  { path: '/projects', label: '项目工作区', description: '项目目录与标签', icon: FolderKanban },
-  { path: '/json', label: 'JSON工具', description: '格式化、压缩、校验', icon: Braces },
-  { path: '/api', label: 'API测试', description: '请求调试与响应检查', icon: Send },
-  { path: '/git', label: 'Git助手', description: '状态、日志、差异', icon: GitBranch },
-  { path: '/ai-explain', label: 'AI解释代码', description: '代码理解与风险分析', icon: Bot },
-  { path: '/ai-generate', label: 'AI生成代码', description: '需求转实现草稿', icon: Sparkles },
+  { path: '/dashboard', label: '项目总览', description: '状态、任务、资产', icon: LayoutDashboard },
+  { path: '/project-tasks', label: '项目任务', description: '需求、Bug、发布', icon: ClipboardList },
+  { path: '/project-agents', label: 'Agent工作站', description: '分工、编排、追踪', icon: Bot },
+  { path: '/project-knowledge', label: '项目知识库', description: '资料、结论、摘要', icon: BookOpen },
+  { path: '/ai-generate', label: 'AI开发', description: '项目方案与实现草稿', icon: Sparkles },
+  { path: '/code-review', label: '代码审查', description: 'Diff 风险与建议', icon: FileSearch },
+  { path: '/api', label: 'API管理', description: '接口资产与调试', icon: Send },
+  { path: '/git', label: 'Git工作流', description: '状态、日志、差异', icon: GitBranch },
+  { path: '/projects', label: '项目设置', description: '资料、目录、导入导出', icon: FolderKanban },
   { path: '/ai-history', label: 'AI历史中心', description: '检索、复用、导出记录', icon: History },
+  { path: '/ai-explain', label: 'AI解释代码', description: '代码理解与风险分析', icon: Bot },
+  { path: '/json', label: 'JSON工具', description: '格式化、压缩、校验', icon: Braces },
   { path: '/settings', label: '设置', description: '模型、目录、超时', icon: Settings }
 ]
 
@@ -61,11 +85,10 @@ const showOnboarding = computed(() => {
 
 async function loadRecentProjects(): Promise<void> {
   try {
-    recentProjects.value = await devtoolsApi.projects.list()
-    selectedRecentProjectId.value = recentProjects.value[0]?.id ?? ''
+    await loadProjectContext()
   } catch (error) {
     recentProjects.value = []
-    selectedRecentProjectId.value = ''
+    currentProjectId.value = ''
     showToast(error instanceof Error ? error.message : '最近项目读取失败', 'error')
   }
 }
@@ -80,12 +103,12 @@ async function loadAppSettings(): Promise<void> {
 }
 
 async function openRecentProject(): Promise<void> {
-  if (!selectedRecentProjectId.value) return
+  if (!currentProjectId.value) return
   try {
-    recentProjects.value = await devtoolsApi.projects.markOpened(selectedRecentProjectId.value)
-    const project = recentProjects.value.find((item) => item.id === selectedRecentProjectId.value)
+    await markCurrentProjectOpened()
+    const project = currentProject.value
     showToast(project ? `已切换最近项目：${project.name}` : '已切换最近项目', 'success')
-    await router.push('/projects')
+    await router.push('/dashboard')
   } catch (error) {
     showToast(error instanceof Error ? error.message : '打开最近项目失败', 'error')
   }
@@ -154,7 +177,7 @@ onUnmounted(() => {
         </div>
         <div class="workspace-actions">
           <select
-            v-model="selectedRecentProjectId"
+            v-model="currentProjectId"
             class="select select-compact recent-project-select"
             :disabled="!recentProjects.length"
           >
@@ -164,7 +187,7 @@ onUnmounted(() => {
           <button
             class="button secondary compact-button"
             type="button"
-            :disabled="!selectedRecentProjectId"
+            :disabled="!currentProjectId"
             @click="openRecentProject"
           >
             最近项目

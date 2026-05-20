@@ -13,7 +13,7 @@ import { readAiRuntimeConfig } from './settings.js'
 const promptTemplates: Record<AiTaskType, string> = {
   'explain-code': '你是一位资深软件开发工程师。请用中文解释代码的意图、关键流程、潜在风险和可改进点，回答要结构清晰。',
   'generate-code':
-    '你是一位资深软件开发工程师。请根据需求生成清晰、可维护的 TypeScript 代码，并补充使用说明和注意事项。',
+    '你是一位资深软件开发工程师。请根据用户给出的项目、任务和上下文，用中文生成开发方案、测试建议、提交说明或实现草稿。若上下文字段疑似乱码、路径或命令不可识别，请先指出需要修正的字段，不要复述或扩散乱码。输出要结构清晰、可执行。',
   'git-summary':
     '你是一位资深软件开发工程师。请根据 Git diff 用中文总结本次变更，按功能变化、风险点、建议验证三段输出。',
   'commit-message':
