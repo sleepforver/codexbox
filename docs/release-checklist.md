@@ -6,7 +6,7 @@
 AI 开发工具箱 v0.1.0 Beta
 ```
 
-该版本按 beta / 公测试用版发布。若要发布稳定版，应先完成自动更新、签名分发、干净环境构建和 Electron E2E 回归。
+该版本按 beta / 公测试用版发布。当前暂不申请 exe 代码签名证书；若要发布稳定版，应先完成自动更新、干净环境构建、Electron E2E 回归，并在预算允许后补齐签名分发。
 
 ## 环境
 
@@ -19,8 +19,19 @@ AI 开发工具箱 v0.1.0 Beta
 
 ## 功能
 
+- [ ] 项目总览可聚合项目资料、任务统计、Git 摘要、API 资产和 AI 活动。
+- [ ] 项目任务可新增、编辑、删除、筛选、切换状态并查看关联 AI 输出。
+- [ ] 项目任务文件可上传、预览和删除，文件内容可进入任务上下文。
+- [ ] Agent 工作站可维护项目级 Agent，并可基于项目目标或任务生成协同工作流草案。
+- [ ] AI 开发页可载入项目/任务上下文，生成方案、测试建议和提交说明草稿。
+- [ ] 代码审查页可审查 unstaged diff、staged diff、指定文件和粘贴内容，并可关联项目任务。
+- [ ] 项目知识库可新增、编辑、删除、收藏、搜索并追踪来源。
+- [ ] 项目知识库统一搜索结果限定在当前项目，覆盖项目资料、任务、知识条目、AI 历史和 API 请求。
 - [ ] 项目工作区可新增、编辑、删除和标记最近使用项目。
 - [ ] 项目工作区可导入 / 导出项目列表和项目数据包。
+- [ ] 项目数据包覆盖项目资料、任务、知识条目、AI 历史和 API 请求。
+- [ ] 项目数据包导入预览显示项目、任务、知识条目、AI 历史、API 请求数量和冲突项目。
+- [ ] 项目数据包另存新项目时，任务 ID 会重建，AI 历史和 API 请求的任务归属会映射到新任务。
 - [ ] JSON 工具可格式化、压缩、校验和路径查询。
 - [ ] API 测试可发送请求、保存请求、导入 OpenAPI、扫描项目 API。
 - [ ] API 请求失败、超时、URL 非法时有明确提示。
@@ -69,7 +80,7 @@ npm.cmd run release:check
 
 `npm.cmd run verify:electron-smoke` 应在 `npm.cmd run build` 之后执行，用隔离数据目录启动构建后的 Electron 应用，检查核心页面路由、导航和 preload API 后自动退出。
 
-`npm.cmd run verify:e2e` 应在 `npm.cmd run build` 之后执行，通过 Playwright Electron 做真实侧边栏点击、路由跳转、preload API、AI 无 Key 状态、设置页数据维护入口、JSON 表单、临时本地 API 请求、临时 Git 仓库操作和截图产物断言。
+`npm.cmd run verify:e2e` 应在 `npm.cmd run build` 之后执行，通过 Playwright Electron 做首次启动引导、真实侧边栏点击、路由跳转、preload API、AI 无 Key 状态、设置页数据维护入口、JSON 表单、临时本地 API 请求、临时 Git 仓库操作和截图产物断言。
 
 `npm.cmd run verify:packaged-smoke` 应在 `npm.cmd run pack` 之后执行，用隔离数据目录启动 `release/win-unpacked/AI 开发工具箱.exe`，确认打包产物可以自动启动并正常退出。
 
@@ -86,19 +97,24 @@ npm.cmd run release:check
 - [ ] 便携版可启动并正常读写用户数据。
 - [ ] 发布包 SHA256 已由 `npm.cmd run verify:release` 记录。
 - [ ] 更新 feed 元数据已由 `npm.cmd run verify:update-feed` 校验。
+- [ ] 已人工确认未签名安装包的 Windows SmartScreen / 未知发布者提示可被用户理解。
 - [ ] Cloudflare R2 下载链接 HEAD 返回 200。
 
 ## 官网
 
 - [ ] `site/index.html` 显示 `v0.1.0 Beta`。
 - [ ] 下载按钮指向 Cloudflare R2 安装版和便携版。
+- [ ] 官网下载区说明当前安装包暂未代码签名，并提示用户核对文件大小和 SHA256。
 - [ ] `npm.cmd run build:site` 后生成 `site/dist/index.html`。
 - [ ] `npm.cmd run build:site` 后生成渲染后的 `site/dist/manual.html`。
 - [ ] Cloudflare Pages 输出目录配置为 `site/dist`。
 
 ## 发布说明
 
+- [ ] `docs/release-notes.md` 说明 v0.2.0 项目管理开发快照的范围、验证结果和后续收口。
 - [ ] `docs/release-notes.md` 说明当前版本为 beta。
 - [ ] README 说明安装、首次配置、数据维护、打包命令和常见问题。
-- [ ] README 说明稳定版前仍需补齐自动更新、签名分发和 E2E。
+- [ ] README 说明 v0.2.0 项目总览、项目任务、项目知识库和项目数据包覆盖范围。
+- [ ] README 说明当前安装包暂未代码签名，Windows 可能出现 SmartScreen 或未知发布者提示。
+- [ ] README 说明稳定版前仍需补齐自动更新和 E2E，签名分发在预算允许后补齐。
 - [ ] 官网、README、发布说明的版本命名保持一致。

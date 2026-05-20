@@ -31,6 +31,9 @@
             <ol class="manual-toc-list">
               <li class="manual-toc-item level-2"><a class="manual-toc-link" href="#版本定位">版本定位</a></li>
               <li class="manual-toc-item level-3"><a class="manual-toc-link" href="#v0-1-0-beta">v0.1.0 Beta</a></li>
+              <li class="manual-toc-item level-3">
+                <a class="manual-toc-link" href="#v0-2-0-项目管理开发快照">v0.2.0 项目管理开发快照</a>
+              </li>
               <li class="manual-toc-item level-2"><a class="manual-toc-link" href="#安装与启动">安装与启动</a></li>
               <li class="manual-toc-item level-3"><a class="manual-toc-link" href="#使用发布包">使用发布包</a></li>
               <li class="manual-toc-item level-3"><a class="manual-toc-link" href="#从源码启动">从源码启动</a></li>
@@ -44,6 +47,10 @@
                 <a class="manual-toc-link" href="#编辑和删除项目">编辑和删除项目</a>
               </li>
               <li class="manual-toc-item level-3"><a class="manual-toc-link" href="#项目数据包">项目数据包</a></li>
+              <li class="manual-toc-item level-2">
+                <a class="manual-toc-link" href="#项目总览与任务">项目总览与任务</a>
+              </li>
+              <li class="manual-toc-item level-2"><a class="manual-toc-link" href="#项目知识库">项目知识库</a></li>
               <li class="manual-toc-item level-2"><a class="manual-toc-link" href="#json-工具">JSON 工具</a></li>
               <li class="manual-toc-item level-2"><a class="manual-toc-link" href="#api-测试">API 测试</a></li>
               <li class="manual-toc-item level-3"><a class="manual-toc-link" href="#发送请求">发送请求</a></li>
@@ -106,7 +113,9 @@
         </p>
         <p>
           当前公开版本命名为
-          <strong>v0.1.0 Beta</strong>。这个版本适合作为第一版公测版试用，不建议按长期稳定版分发给非技术用户。
+          <strong>v0.1.0 Beta</strong
+          >。这个版本适合作为第一版公测版试用，不建议按长期稳定版分发给非技术用户。当前开发分支已经进入
+          <strong>v0.2.0 项目管理开发快照</strong>，主线从“工具集合”升级为“项目管理型 AI 工作台”。
         </p>
         <h2 id="版本定位">版本定位</h2>
         <h3 id="v0-1-0-beta">v0.1.0 Beta</h3>
@@ -124,6 +133,21 @@
           <li><code>v1.0.0</code>：稳定性和自动更新条件还不够。</li>
           <li><code>正式版</code>：当前更适合 beta / 公测版定位。</li>
           <li><code>内测版</code>：官网和 R2 下载已经具备公开试用入口，内测语义偏保守。</li>
+        </ul>
+        <h3 id="v0-2-0-项目管理开发快照">v0.2.0 项目管理开发快照</h3>
+        <p>第二版开发分支的目标是把应用从通用 AI 工具箱升级为项目管理型 AI 工具箱。当前主流程已经围绕项目组织：</p>
+        <ul>
+          <li><code>项目总览</code> 聚合项目资料、任务统计、Git 摘要、API 资产和 AI 活动。</li>
+          <li><code>项目任务</code> 支持需求、Bug、优化、重构、文档和发布任务，并能关联 AI 输出和任务文件。</li>
+          <li><code>AI开发</code> 可以载入项目与任务上下文，生成开发方案、测试建议和提交说明草稿。</li>
+          <li>
+            <code>代码审查</code> 可以审查 unstaged diff、staged diff、指定文件或粘贴内容，并把结果写入项目/任务历史。
+          </li>
+          <li><code>项目知识库</code> 可以沉淀项目资料、AI 结论、API 记录和任务备注，并保留来源信息。</li>
+          <li>
+            <code>项目数据包</code> 已覆盖项目资料、项目任务、项目知识库、AI 历史和 API
+            请求集合，支持覆盖、跳过和另存新项目。
+          </li>
         </ul>
         <h2 id="安装与启动">安装与启动</h2>
         <h3 id="使用发布包">使用发布包</h3>
@@ -185,13 +209,17 @@ OPENAI_COMPATIBLE_BASE_URL=https://api.example.com/v1
         <h2 id="界面导航">界面导航</h2>
         <p>应用左侧为模块导航：</p>
         <ul>
-          <li><code>项目工作区</code>：维护本地项目目录、标签、说明和项目数据包。</li>
-          <li><code>JSON工具</code>：格式化、压缩、校验 JSON，并按路径查询字段。</li>
-          <li><code>API测试</code>：发送 HTTP 请求、保存集合、导入接口、分析响应。</li>
-          <li><code>Git助手</code>：查看状态、日志、diff，暂存文件并生成提交说明。</li>
-          <li><code>AI解释代码</code>：用 Prompt 模板解释代码并保存历史。</li>
-          <li><code>AI生成代码</code>：根据需求生成代码草稿并复制代码块。</li>
+          <li><code>项目总览</code>：聚合当前项目资料、任务、Git、API 和 AI 活动。</li>
+          <li><code>项目任务</code>：管理需求、Bug、优化、重构、文档和发布任务。</li>
+          <li><code>项目知识库</code>：沉淀项目资料、AI 结论、接口说明和任务备注。</li>
+          <li><code>AI开发</code>：基于项目和任务上下文生成方案、测试建议和提交说明。</li>
+          <li><code>代码审查</code>：审查 diff、指定文件或粘贴内容，并可关联项目任务。</li>
+          <li><code>API管理</code>：发送 HTTP 请求、保存集合、导入接口、分析响应并关联任务。</li>
+          <li><code>Git工作流</code>：查看状态、日志、diff，暂存文件并生成提交说明。</li>
+          <li><code>项目设置</code>：维护项目资料、命令、重要目录和项目数据包。</li>
           <li><code>AI历史中心</code>：检索、复用、收藏、导出和清理 AI 历史。</li>
+          <li><code>AI解释代码</code>：用 Prompt 模板解释代码并保存历史。</li>
+          <li><code>JSON工具</code>：格式化、压缩、校验 JSON，并按路径查询字段。</li>
           <li><code>设置</code>：管理模型、模板、默认目录、数据库和导入导出。</li>
         </ul>
         <p>顶部的最近项目下拉框可以快速切换项目上下文。</p>
@@ -209,12 +237,32 @@ OPENAI_COMPATIBLE_BASE_URL=https://api.example.com/v1
         <p>编辑项目时，在项目列表中选择项目，修改名称、目录、标签或说明后点击 <code>保存项目</code>。</p>
         <p>删除项目时，选择项目后点击删除按钮，并在确认弹窗中确认。删除项目工作区不会删除本地源码目录。</p>
         <h3 id="项目数据包">项目数据包</h3>
-        <p>项目数据包用于迁移项目相关数据，包括项目记录、AI 历史和 API 请求。</p>
+        <p>项目数据包用于迁移项目相关数据，包括项目资料、项目任务、项目知识库、AI 历史和 API 请求。</p>
         <ul>
           <li><code>导出项目包</code>：导出当前项目相关数据。</li>
-          <li><code>导入项目包</code>：导入前显示预览数量和冲突项目。</li>
+          <li><code>导入项目包</code>：导入前显示项目、任务、知识条目、AI 历史、API 请求数量和冲突项目。</li>
           <li>冲突策略：支持覆盖、跳过和另存新项目。</li>
         </ul>
+        <h2 id="项目总览与任务">项目总览与任务</h2>
+        <p>
+          <code>项目总览</code> 是第二版的主入口。选择项目后，页面会显示项目路径状态、技术栈、任务统计、最近任务、Git
+          摘要、AI 活动和 API 资产。路径失效或没有项目时，页面会给出明确空状态。
+        </p>
+        <p>
+          <code>项目任务</code>
+          用于维护项目内的需求、Bug、优化、重构、文档和发布任务。每个任务都归属于一个项目，包含标题、描述、类型、优先级、状态、创建时间、更新时间和完成时间。任务页支持：
+        </p>
+        <ul>
+          <li>按状态、类型和关键词筛选。</li>
+          <li>上传任务文件并在任务上下文中引用。</li>
+          <li>从任务发起 AI 开发方案、测试建议和提交说明草稿。</li>
+          <li>查看当前任务关联的 AI 历史输出。</li>
+        </ul>
+        <h2 id="项目知识库">项目知识库</h2>
+        <p>
+          <code>项目知识库</code> 用于保存可追溯的项目结论和资料条目。条目支持标题、内容、来源类型、来源 ID
+          和收藏状态。AI 历史中心可以把重要输出沉淀为知识条目，后续可按项目检索和复用。
+        </p>
         <h2 id="json-工具">JSON 工具</h2>
         <p>JSON 工具支持格式化、压缩、校验和路径查询。</p>
         <p>常用流程：</p>

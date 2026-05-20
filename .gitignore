@@ -3,8 +3,10 @@ out/
 dist/
 site/dist/
 release/
-requirement/
-docs/
+requirement/*
+!requirement/*.md
+docs/*
+docs/*.md
 data/
 .vite/
 .cache/
